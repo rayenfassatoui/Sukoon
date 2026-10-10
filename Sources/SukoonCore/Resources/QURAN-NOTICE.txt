@@ -1,0 +1,18 @@
+Quran dataset attribution
+
+Dataset: Quran JSON version 3.1.2
+Creator and copyright holder: Risan Bagja Pradana
+Pinned dataset: https://cdn.jsdelivr.net/npm/quran-json@3.1.2/dist/quran.json
+Pinned JSON SHA-256: d8a8adff387f60ce3ff7dbe3238dd9b27120bfe29d8fcb07ad2e89cad37cefd4
+Project source: https://github.com/risan/quran-json/tree/v3.1.2
+
+The Uthmani Quran text is sourced by Quran JSON from The Noble Qur'an Encyclopedia:
+https://quranenc.com/en/home
+
+The English surah transliteration is sourced by Quran JSON from Tanzil.net:
+https://tanzil.net/trans/en.transliteration
+
+The bundled dataset is redistributed unchanged under Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0). The complete license text is included in QURAN-LICENSE.txt.
+https://creativecommons.org/licenses/by-sa/4.0/
+
+No modifications were made to the Arabic Quran text in the pinned JSON dataset.

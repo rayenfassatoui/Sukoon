@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:Sukoon}",
+            "name": "Debug Sukoon",
+            "target": "Sukoon",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug Sukoon"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:Sukoon}",
+            "name": "Release Sukoon",
+            "target": "Sukoon",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release Sukoon"
+        }
+    ]
+}
