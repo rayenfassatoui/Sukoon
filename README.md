@@ -55,7 +55,7 @@ The menu bar stays minimal: Arabic text, a surah reference, and access to the re
 
 ## Features
 
-- **Small, timed reading moments.** A reminder every two minutes by default, with longer intervals and pause/resume controls.
+- **Small, timed reading moments.** A reminder every two minutes by default, configurable from 30 seconds to two hours, with pause/resume controls.
 - **The complete Quran, offline.** All 114 surahs and 6,236 ayahs in Arabic Uthmani text. Search by Arabic name, transliteration, or surah number, including Arabic digits.
 - **Automatic Quran reading.** Move from Al-Fatihah to An-Nas, one ayah at a time, with a separately saved position.
 - **Choose your own surah.** Follow a specific chapter without resetting the automatic Quran journey.
@@ -143,7 +143,7 @@ Arabic uses a right-to-left workspace, localized controls, help text, menus, and
 ## Appearance and reminder behavior
 
 - **System** follows the Mac's appearance; switching back to it clears a previous Light or Dark override.
-- Reminder intervals: **2, 5, 10, 15, 30, 60, or 120 minutes**.
+- Reminder intervals: **30 seconds**, or **2, 5, 10, 15, 30, 60, or 120 minutes**. The default remains **2 minutes**; existing saved intervals are preserved.
 - Scheduled reminders and previews use one compact, scrollable panel. A new reminder replaces the old one and starts a fresh 10-second timeout; panels never stack.
 - Close a panel early with its close control or **Escape**. For longer ayahs, use the full Quran reader.
 - Reminders suspend while the Mac is asleep, locked, or the screen or user session is inactive. Resuming schedules one fresh interval—there is no catch-up burst.
