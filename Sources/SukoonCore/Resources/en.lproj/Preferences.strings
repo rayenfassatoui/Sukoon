@@ -7,6 +7,11 @@
 "App language" = "App language";
 "Arabic uses a right-to-left layout. Your language choice is saved automatically." = "Arabic uses a right-to-left layout. Your language choice is saved automatically.";
 "Choose the app language" = "Choose the app language";
+"Menu bar" = "Menu bar";
+"Auto-close after" = "Auto-close after";
+"The menu bar popover closes automatically after this delay. Default: 10 seconds." = "The menu bar popover closes automatically after this delay. Default: 10 seconds.";
+"%@ sec" = "%@ sec";
+"Choose when the menu bar popover closes" = "Choose when the menu bar popover closes";
 "Reminders" = "Reminders";
 "Quran reminders" = "Quran reminders";
 "Allow Sukoon to offer a quiet reading moment at your chosen interval." = "Allow Sukoon to offer a quiet reading moment at your chosen interval.";

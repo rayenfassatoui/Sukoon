@@ -32,7 +32,7 @@
   <img src="assets/screenshots/system-dark-popover.png" alt="Compact dark menu bar popover showing Al-Fatihah 1:1, its reference, and reader and menu controls" width="360">
 </p>
 
-The menu bar stays minimal: Arabic text, a surah reference, and access to the reader and settings. Scheduled reminders, previews, and the menu bar popover close automatically after **10 seconds**.
+The menu bar stays minimal: Arabic text, a surah reference, and access to the reader and settings. The popover uses a configurable auto-close delay; scheduled reminders and previews close automatically after **10 seconds**.
 
 <p align="center">
   <img src="assets/screenshots/reader-automatic-and-manual.png" alt="Sukoon's dark Quran reader with a surah list, Al-Fatihah, and separate automatic and chosen-surah reading controls" width="960">
@@ -92,7 +92,7 @@ You can move **`build/Sukoon.app`** into **`/Applications`**. The bundle is self
 ### First use
 
 1. Open Sukoon. Use the menu bar icon to access the compact Quran view.
-2. Open **Settings** from the **…** menu to choose your language, reminder interval, content, and appearance.
+2. Open **Settings** from the **…** menu to choose your language, menu bar auto-close delay, reminder interval, content, and appearance.
 3. Open the **Quran** reader to browse chapters, bookmark a verse, or choose a reading plan.
 
 Closing the main window keeps Sukoon running in the menu bar. Use **Quit** to stop the app and its reminders.
@@ -143,7 +143,8 @@ Arabic uses a right-to-left workspace, localized controls, help text, menus, and
 ## Appearance and reminder behavior
 
 - **System** follows the Mac's appearance; switching back to it clears a previous Light or Dark override.
-- Reminder intervals: **30 seconds**, or **2, 5, 10, 15, 30, 60, or 120 minutes**. The default remains **2 minutes**; existing saved intervals are preserved.
+- Menu bar auto-close: **10 seconds** by default. Choose **10, 15, or 20 seconds** in **Settings → Menu bar → Auto-close after**. Your choice is saved and applies the next time you open the popover.
+- Reminder intervals: **30 seconds**, or **1, 2, 5, 10, 15, 30, 60, or 120 minutes**. The default remains **2 minutes**; existing saved intervals are preserved.
 - Scheduled reminders and previews use one compact, scrollable panel. A new reminder replaces the old one and starts a fresh 10-second timeout; panels never stack.
 - Close a panel early with its close control or **Escape**. For longer ayahs, use the full Quran reader.
 - Reminders suspend while the Mac is asleep, locked, or the screen or user session is inactive. Resuming schedules one fresh interval—there is no catch-up burst.

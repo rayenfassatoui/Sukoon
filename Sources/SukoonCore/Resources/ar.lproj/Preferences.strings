@@ -7,6 +7,11 @@
 "App language" = "لغة التطبيق";
 "Arabic uses a right-to-left layout. Your language choice is saved automatically." = "تستخدم العربية تخطيطًا من اليمين إلى اليسار. يُحفظ اختيار اللغة تلقائيًا.";
 "Choose the app language" = "اختر لغة التطبيق";
+"Menu bar" = "شريط القوائم";
+"Auto-close after" = "الإغلاق التلقائي بعد";
+"The menu bar popover closes automatically after this delay. Default: 10 seconds." = "تُغلق نافذة شريط القوائم تلقائيًا بعد هذه المدة. المدة الافتراضية: ١٠ ثوانٍ.";
+"%@ sec" = "%@ ثانية";
+"Choose when the menu bar popover closes" = "اختر موعد إغلاق نافذة شريط القوائم";
 "Reminders" = "التذكيرات";
 "Quran reminders" = "تذكيرات القرآن";
 "Allow Sukoon to offer a quiet reading moment at your chosen interval." = "اسمح لسكون بأن يقدّم لحظة هادئة للقراءة وفق الفاصل الذي تختاره.";

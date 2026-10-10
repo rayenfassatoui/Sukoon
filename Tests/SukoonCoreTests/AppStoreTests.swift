@@ -155,6 +155,7 @@ final class AppStoreTests: XCTestCase {
                 theme: .dark,
                 accent: .gold,
                 intervalSeconds: 30,
+                menuBarAutoCloseSeconds: 20,
                 mode: .ayah,
                 remindersEnabled: false,
                 arabicFontSize: 41,
@@ -172,6 +173,7 @@ final class AppStoreTests: XCTestCase {
         XCTAssertEqual(restored.settings.theme, .dark)
         XCTAssertEqual(restored.settings.accent, .gold)
         XCTAssertEqual(restored.settings.intervalSeconds, 30)
+        XCTAssertEqual(restored.settings.menuBarAutoCloseSeconds, 20)
         XCTAssertEqual(restored.settings.mode, .surah)
         XCTAssertTrue(restored.settings.remindersEnabled)
         XCTAssertFalse(restored.settings.autoAdvance)
@@ -212,7 +214,11 @@ final class AppStoreTests: XCTestCase {
         XCTAssertEqual(upgraded.automaticNextReference, VerseReference(surahID: 1, verseID: 1))
 
         upgraded.settings.language = .arabic
+        upgraded.settings.menuBarAutoCloseSeconds = 15
+        upgraded.settings.intervalSeconds = 60
         expectedSettings.language = .arabic
+        expectedSettings.menuBarAutoCloseSeconds = 15
+        expectedSettings.intervalSeconds = 60
         let restored = AppStore(library: library, defaults: defaults)
         XCTAssertEqual(restored.settings, expectedSettings)
         XCTAssertEqual(restored.selectedSurahID, 1)
@@ -230,7 +236,8 @@ final class AppStoreTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
         let library = twoSurahLibrary()
         let store = AppStore(library: library, defaults: defaults)
-        store.settings = AppSettings(theme: .light, accent: .rose, intervalSeconds: 600, language: .arabic)
+        store.settings = AppSettings(theme: .light, accent: .rose, intervalSeconds: 600,
+                                     menuBarAutoCloseSeconds: 20, language: .arabic)
         store.startAutomaticReading()
         store.acknowledge(try XCTUnwrap(store.nextReminder()))
         XCTAssertEqual(store.automaticVerseOffset, 1)
@@ -254,6 +261,7 @@ final class AppStoreTests: XCTestCase {
         XCTAssertEqual(store.settings.theme, .light)
         XCTAssertEqual(store.settings.accent, .rose)
         XCTAssertEqual(store.settings.intervalSeconds, 600)
+        XCTAssertEqual(store.settings.menuBarAutoCloseSeconds, 20)
         XCTAssertEqual(store.settings.mode, .surah, "Reset preserves every setting, including mode")
         XCTAssertTrue(store.settings.remindersEnabled)
 
@@ -263,6 +271,7 @@ final class AppStoreTests: XCTestCase {
         XCTAssertNil(restored.bookmark)
         XCTAssertEqual(restored.settings.mode, .surah)
         XCTAssertEqual(restored.settings.intervalSeconds, 600)
+        XCTAssertEqual(restored.settings.menuBarAutoCloseSeconds, 20)
         XCTAssertEqual(restored.settings.language, .arabic)
         XCTAssertEqual(restored.automaticVerseOffset, 0)
     }

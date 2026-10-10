@@ -11,7 +11,8 @@ struct SettingsView: View {
     let onPreview: () -> Void
     @State private var showingResetConfirmation = false
 
-    private let intervalOptions = [30, 120, 300, 600, 900, 1800, 3600, 7200]
+    private let intervalOptions = [30, 60, 120, 300, 600, 900, 1800, 3600, 7200]
+    private let menuBarAutoCloseOptions = [10, 15, 20]
 
     private var canPreview: Bool {
         switch store.settings.mode {
@@ -102,6 +103,32 @@ struct SettingsView: View {
                     }
                 }
 
+                settingsSection(l10n.text("Menu bar", table: "Preferences"), symbol: "menubar.rectangle") {
+                    SettingsRow(
+                        title: l10n.text("Auto-close after", table: "Preferences"),
+                        detail: l10n.text(
+                            "The menu bar popover closes automatically after this delay. Default: 10 seconds.",
+                            table: "Preferences"
+                        )
+                    ) {
+                        Picker(
+                            l10n.text("Auto-close after", table: "Preferences"),
+                            selection: $store.settings.menuBarAutoCloseSeconds
+                        ) {
+                            ForEach(menuBarAutoCloseOptions, id: \.self) { seconds in
+                                Text(l10n.format("%@ sec", l10n.number(seconds), table: "Preferences"))
+                                    .tag(seconds)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(width: 180)
+                        .id(store.settings.language)
+                        .accessibilityIdentifier("settings.menuBarAutoClose")
+                        .help(l10n.text("Choose when the menu bar popover closes", table: "Preferences"))
+                    }
+                }
+
                 settingsSection(l10n.text("Reminders", table: "Preferences"), symbol: "bell") {
                     SettingsRow(
                         title: l10n.text("Quran reminders", table: "Preferences"),
@@ -140,6 +167,7 @@ struct SettingsView: View {
                         .pickerStyle(.menu)
                         .frame(width: 180)
                         .id(store.settings.language)
+                        .accessibilityIdentifier("settings.interval")
                         .help(l10n.text("Choose how often reminders appear", table: "Preferences"))
                     }
 

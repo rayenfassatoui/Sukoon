@@ -113,6 +113,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var theme: AppTheme
     public var accent: AccentTheme
     public var intervalSeconds: Int
+    public var menuBarAutoCloseSeconds: Int
     public var mode: ReminderMode
     public var remindersEnabled: Bool
     public var arabicFontSize: Double
@@ -123,6 +124,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         theme: AppTheme = .system,
         accent: AccentTheme = .jade,
         intervalSeconds: Int = 120,
+        menuBarAutoCloseSeconds: Int = 10,
         mode: ReminderMode = .mixed,
         remindersEnabled: Bool = true,
         arabicFontSize: Double = 32,
@@ -132,6 +134,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.theme = theme
         self.accent = accent
         self.intervalSeconds = intervalSeconds
+        self.menuBarAutoCloseSeconds = menuBarAutoCloseSeconds
         self.mode = mode
         self.remindersEnabled = remindersEnabled
         self.arabicFontSize = arabicFontSize
@@ -140,7 +143,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case theme, accent, intervalSeconds, mode, remindersEnabled, arabicFontSize, autoAdvance, language
+        case theme, accent, intervalSeconds, menuBarAutoCloseSeconds, mode, remindersEnabled
+        case arabicFontSize, autoAdvance, language
     }
 
     private enum LegacyCodingKeys: String, CodingKey {
@@ -157,6 +161,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
             let legacy = try decoder.container(keyedBy: LegacyCodingKeys.self)
             intervalSeconds = (try legacy.decodeIfPresent(Int.self, forKey: .intervalMinutes) ?? 2) * 60
         }
+        menuBarAutoCloseSeconds = try values.decodeIfPresent(Int.self, forKey: .menuBarAutoCloseSeconds) ?? 10
         mode = try values.decodeIfPresent(ReminderMode.self, forKey: .mode) ?? .mixed
         remindersEnabled = try values.decodeIfPresent(Bool.self, forKey: .remindersEnabled) ?? true
         arabicFontSize = try values.decodeIfPresent(Double.self, forKey: .arabicFontSize) ?? 32

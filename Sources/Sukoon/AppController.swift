@@ -101,7 +101,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
         } else {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popoverDismissalTimer?.invalidate()
-            let timer = Timer(timeInterval: 10, repeats: false) { [weak self] _ in
+            let timer = Timer(timeInterval: TimeInterval(store.settings.menuBarAutoCloseSeconds), repeats: false) { [weak self] _ in
                 MainActor.assumeIsolated { self?.popover.performClose(nil) }
             }
             RunLoop.main.add(timer, forMode: .common)
