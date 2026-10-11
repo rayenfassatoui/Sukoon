@@ -101,6 +101,31 @@ struct SettingsView: View {
                         .accessibilityIdentifier("settings.language")
                         .help(l10n.text("Choose the app language", table: "Preferences"))
                     }
+
+                    Divider()
+
+                    SettingsRow(
+                        title: l10n.text("Ayah numbers", table: "Preferences"),
+                        detail: l10n.text(
+                            "The digit style for ayah numbers and Quran references is saved separately from the app language.",
+                            table: "Preferences"
+                        )
+                    ) {
+                        Picker(
+                            l10n.text("Ayah numbers", table: "Preferences"),
+                            selection: $store.settings.quranNumberStyle
+                        ) {
+                            ForEach(QuranNumberStyle.allCases) { style in
+                                Text(l10n.text(style.title, table: "Preferences")).tag(style)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(width: 180)
+                        .id(store.settings.language)
+                        .accessibilityIdentifier("settings.ayahNumbers")
+                        .help(l10n.text("Choose the digits for ayah numbers and Quran references", table: "Preferences"))
+                    }
                 }
 
                 settingsSection(l10n.text("Menu bar", table: "Preferences"), symbol: "menubar.rectangle") {

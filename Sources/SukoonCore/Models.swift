@@ -119,6 +119,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var arabicFontSize: Double
     public var autoAdvance: Bool
     public var language: AppLanguage
+    public var quranNumberStyle: QuranNumberStyle
 
     public init(
         theme: AppTheme = .system,
@@ -129,7 +130,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         remindersEnabled: Bool = true,
         arabicFontSize: Double = 32,
         autoAdvance: Bool = true,
-        language: AppLanguage = .english
+        language: AppLanguage = .english,
+        quranNumberStyle: QuranNumberStyle = .western
     ) {
         self.theme = theme
         self.accent = accent
@@ -140,11 +142,12 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.arabicFontSize = arabicFontSize
         self.autoAdvance = autoAdvance
         self.language = language
+        self.quranNumberStyle = quranNumberStyle
     }
 
     private enum CodingKeys: String, CodingKey {
         case theme, accent, intervalSeconds, menuBarAutoCloseSeconds, mode, remindersEnabled
-        case arabicFontSize, autoAdvance, language
+        case arabicFontSize, autoAdvance, language, quranNumberStyle
     }
 
     private enum LegacyCodingKeys: String, CodingKey {
@@ -167,6 +170,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         arabicFontSize = try values.decodeIfPresent(Double.self, forKey: .arabicFontSize) ?? 32
         autoAdvance = try values.decodeIfPresent(Bool.self, forKey: .autoAdvance) ?? true
         language = try values.decodeIfPresent(AppLanguage.self, forKey: .language) ?? .english
+        quranNumberStyle = try values.decodeIfPresent(QuranNumberStyle.self, forKey: .quranNumberStyle)
+            ?? (language == .arabic ? .arabic : .western)
     }
 }
 

@@ -147,7 +147,7 @@ struct ReaderView: View {
                             l10n.format(
                                 "Resume %@ · %@",
                                 l10n.surahName(bookmarkedSurah),
-                                l10n.number(bookmark.verseID),
+                                l10n.quranNumber(bookmark.verseID),
                                 table: "Workspace"
                             ),
                             systemImage: "bookmark.fill"
@@ -202,7 +202,7 @@ private struct SurahIndexRow: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .fill(selected ? palette.accent.opacity(0.16) : palette.raisedSurface)
-                    Text(l10n.number(surah.id))
+                    Text(l10n.quranNumber(surah.id))
                         .font(.caption2.monospacedDigit().weight(.semibold))
                 }
                 .frame(width: 32, height: 32)
@@ -326,7 +326,7 @@ private struct SurahReader: View {
                     Text(
                         l10n.format(
                             "SURAH %@",
-                            l10n.number(surah.id),
+                            l10n.quranNumber(surah.id),
                             table: "Workspace"
                         )
                     )
@@ -415,7 +415,7 @@ private struct SurahReader: View {
                         Label(
                             l10n.format(
                                 "Bookmark %@",
-                                l10n.number(bookmark.verseID),
+                                l10n.quranNumber(bookmark.verseID),
                                 table: "Workspace"
                             ),
                             systemImage: "bookmark.fill"
@@ -460,7 +460,7 @@ private struct VerseRow: View {
         VStack(alignment: .trailing, spacing: 20) {
             HStack(alignment: .top, spacing: 18) {
                 VStack(spacing: 9) {
-                    Text(l10n.number(verse.id))
+                    Text(l10n.quranNumber(verse.id))
                         .font(.custom("Geeza Pro", size: 16).weight(.bold))
                         .foregroundStyle(isRead ? .white : palette.accent)
                         .frame(width: 38, height: 38)

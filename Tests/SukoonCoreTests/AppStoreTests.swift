@@ -159,7 +159,8 @@ final class AppStoreTests: XCTestCase {
                 mode: .ayah,
                 remindersEnabled: false,
                 arabicFontSize: 41,
-                autoAdvance: false
+                autoAdvance: false,
+                quranNumberStyle: .arabic
             )
             store.startSurah(2)
             store.settings.autoAdvance = false
@@ -178,6 +179,7 @@ final class AppStoreTests: XCTestCase {
         XCTAssertTrue(restored.settings.remindersEnabled)
         XCTAssertFalse(restored.settings.autoAdvance)
         XCTAssertEqual(restored.settings.arabicFontSize, 41)
+        XCTAssertEqual(restored.settings.quranNumberStyle, .arabic)
         XCTAssertEqual(restored.bookmark, VerseReference(surahID: 1, verseID: 2))
         XCTAssertEqual(restored.readVerseCount, 1)
         XCTAssertTrue(restored.isRead(surahID: 1, verseID: 1))
@@ -228,6 +230,46 @@ final class AppStoreTests: XCTestCase {
         XCTAssertEqual(restored.nextUnreadVerse(in: 1)?.id, 2)
         XCTAssertEqual(restored.automaticVerseOffset, 0)
         XCTAssertEqual(restored.automaticNextReference, VerseReference(surahID: 1, verseID: 1))
+    }
+
+    @MainActor
+    func testArabicStateUpgradePreservesDigitsWhileLanguageAndNumberChoicesChangeIndependently() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let state = """
+        {
+          "settings": { "language": "ar", "intervalSeconds": 60, "menuBarAutoCloseSeconds": 20 },
+          "selectedSurahID": 1,
+          "automaticVerseOffset": 1,
+          "bookmark": { "surahID": 1, "verseID": 2 },
+          "readVerses": [{ "surahID": 1, "verseID": 1 }]
+        }
+        """
+        defaults.set(Data(state.utf8), forKey: "Sukoon.AppStore.state.v1")
+        let library = twoSurahLibrary()
+        let upgraded = AppStore(library: library, defaults: defaults)
+        XCTAssertEqual(upgraded.settings.quranNumberStyle, .arabic)
+        XCTAssertNil(upgraded.persistenceError)
+
+        upgraded.settings.language = .english
+        let restored = AppStore(library: library, defaults: defaults)
+        XCTAssertEqual(restored.settings.language, .english)
+        XCTAssertEqual(restored.settings.quranNumberStyle, .arabic)
+        XCTAssertEqual(restored.settings.intervalSeconds, 60)
+        XCTAssertEqual(restored.settings.menuBarAutoCloseSeconds, 20)
+        XCTAssertEqual(restored.selectedSurahID, 1)
+        XCTAssertEqual(restored.automaticVerseOffset, 1)
+        XCTAssertEqual(restored.bookmark, VerseReference(surahID: 1, verseID: 2))
+        XCTAssertTrue(restored.isRead(surahID: 1, verseID: 1))
+
+        restored.settings.quranNumberStyle = .western
+        XCTAssertEqual(restored.settings.language, .english)
+        restored.settings.language = .arabic
+        let switched = AppStore(library: library, defaults: defaults)
+        XCTAssertEqual(switched.settings.language, .arabic)
+        XCTAssertEqual(switched.settings.quranNumberStyle, .western)
+        XCTAssertEqual(switched.automaticVerseOffset, 1)
+        XCTAssertEqual(switched.readVerseCount, 1)
     }
 
     @MainActor

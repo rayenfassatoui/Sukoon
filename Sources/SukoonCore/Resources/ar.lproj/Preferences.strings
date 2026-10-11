@@ -7,6 +7,11 @@
 "App language" = "لغة التطبيق";
 "Arabic uses a right-to-left layout. Your language choice is saved automatically." = "تستخدم العربية تخطيطًا من اليمين إلى اليسار. يُحفظ اختيار اللغة تلقائيًا.";
 "Choose the app language" = "اختر لغة التطبيق";
+"Ayah numbers" = "أرقام الآيات";
+"The digit style for ayah numbers and Quran references is saved separately from the app language." = "يُحفظ شكل أرقام الآيات ومراجع القرآن بشكل مستقل عن لغة التطبيق.";
+"Western (123)" = "غربية (123)";
+"Arabic (١٢٣)" = "عربية (١٢٣)";
+"Choose the digits for ayah numbers and Quran references" = "اختر شكل أرقام الآيات ومراجع القرآن";
 "Menu bar" = "شريط القوائم";
 "Auto-close after" = "الإغلاق التلقائي بعد";
 "The menu bar popover closes automatically after this delay. Default: 10 seconds." = "تُغلق نافذة شريط القوائم تلقائيًا بعد هذه المدة. المدة الافتراضية: ١٠ ثوانٍ.";

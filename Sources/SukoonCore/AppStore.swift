@@ -309,7 +309,7 @@ public final class AppStore {
               let result = library.verse(atGlobalOffset: Int(selection % UInt64(count))) else {
             return nil
         }
-        let l10n = AppLocalization(language: settings.language)
+        let l10n = AppLocalization(language: settings.language, quranNumberStyle: settings.quranNumberStyle)
         let reference = VerseReference(surahID: result.surah.id, verseID: result.verse.id)
         return ReminderContent(
             id: ayahReminderID,
@@ -331,7 +331,7 @@ public final class AppStore {
                   let verse = surah.verses.first(where: { $0.id == reference.verseID }) else {
                 continue
             }
-            let l10n = AppLocalization(language: settings.language)
+            let l10n = AppLocalization(language: settings.language, quranNumberStyle: settings.quranNumberStyle)
             return ReminderContent(
                 id: duaReminderID,
                 kind: .dua,
@@ -347,7 +347,7 @@ public final class AppStore {
     private func makeSurahReminder() -> ReminderContent? {
         guard let surah = activeSurah,
               let verse = nextUnreadVerse(in: surah.id) else { return nil }
-        let l10n = AppLocalization(language: settings.language)
+        let l10n = AppLocalization(language: settings.language, quranNumberStyle: settings.quranNumberStyle)
         let reference = VerseReference(surahID: surah.id, verseID: verse.id)
         return ReminderContent(
             id: surahReminderID,
@@ -361,7 +361,7 @@ public final class AppStore {
 
     private func makeAutomaticReminder(id: UUID) -> ReminderContent? {
         guard let result = library.verse(atGlobalOffset: automaticVerseOffset) else { return nil }
-        let l10n = AppLocalization(language: settings.language)
+        let l10n = AppLocalization(language: settings.language, quranNumberStyle: settings.quranNumberStyle)
         let reference = VerseReference(surahID: result.surah.id, verseID: result.verse.id)
         return ReminderContent(
             id: id,

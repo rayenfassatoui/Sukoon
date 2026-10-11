@@ -283,7 +283,7 @@ struct JourneyView: View {
                     Text(
                         l10n.format(
                             "Next: verse %@",
-                            l10n.number(next.id),
+                            l10n.quranNumber(next.id),
                             table: "Workspace"
                         )
                     )
@@ -378,7 +378,7 @@ private struct JourneySurahCard: View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 11) {
                 HStack {
-                    Text(l10n.number(surah.id))
+                    Text(l10n.quranNumber(surah.id))
                         .font(.caption.monospacedDigit().weight(.semibold))
                         .foregroundStyle(.secondary)
                     Spacer()

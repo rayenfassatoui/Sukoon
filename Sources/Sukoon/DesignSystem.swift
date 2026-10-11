@@ -100,7 +100,7 @@ struct ThemeRoot<Content: View>: View {
 
     var body: some View {
         let palette = Palette(accent: store.settings.accent, dark: colorScheme == .dark)
-        let l10n = AppLocalization(language: store.settings.language)
+        let l10n = AppLocalization(language: store.settings.language, quranNumberStyle: store.settings.quranNumberStyle)
         content
             .environment(\.sukoonPalette, palette)
             .environment(\.sukoonLocalization, l10n)
@@ -140,7 +140,7 @@ struct PassageReference: View {
 
     var body: some View {
         if let reference = content.reference, let surah = library.surah(reference.surahID) {
-            Text("\(surah.name) · \(reference.verseID.arabicIndicNumerals)")
+            Text("\(surah.name) · \u{2066}\(l10n.quranNumber(reference.verseID))\u{2069}")
                 .font(.custom("Geeza Pro", size: 14))
                 .environment(\.layoutDirection, .rightToLeft)
                 .accessibilityLabel(l10n.reminderSubtitle(content))
@@ -229,13 +229,3 @@ struct SukoonProgress: View {
     }
 }
 
-extension Int {
-    private static let arabicDigits = Array("٠١٢٣٤٥٦٧٨٩")
-    var arabicIndicNumerals: String {
-        let digits = Self.arabicDigits
-        return String(String(self).map { character in
-            guard let value = character.wholeNumberValue else { return character }
-            return digits[value]
-        })
-    }
-}

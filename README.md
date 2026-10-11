@@ -60,7 +60,7 @@ The menu bar stays minimal: Arabic text, a surah reference, and access to the re
 - **Automatic Quran reading.** Move from Al-Fatihah to An-Nas, one ayah at a time, with a separately saved position.
 - **Choose your own surah.** Follow a specific chapter without resetting the automatic Quran journey.
 - **A full reader.** Read at your own pace, mark ayahs, save a bookmark, and resume later.
-- **English and Arabic.** An immediately switchable interface with right-to-left layout and localized numbers in Arabic.
+- **English and Arabic.** An immediately switchable interface with right-to-left layout in Arabic and independently selectable Quran digits.
 - **Native appearance.** System, Light, or Dark theme; Jade, Gold, or Rose accents; adjustable Arabic text size.
 - **Completion moments.** Surah completion feedback and a Quran completion celebration with a Quranic dua. Confetti respects Reduce Motion.
 
@@ -140,6 +140,10 @@ Switch between **English** and **العربية** in **Settings → Language**. 
 
 Arabic uses a right-to-left workspace, localized controls, help text, menus, and completion messages. Quran ayahs remain Arabic in both interface languages. Changing language preserves reading progress, bookmarks, and reminder preferences.
 
+Choose **Western (123)** or **Arabic (١٢٣)** digits in **Settings → Language → Ayah numbers**, independently of the interface language. This controls surah and ayah identifiers, bookmarks, and Quran references in the reader, journey, menu bar, and reminder panels. Other interface values still follow the app language.
+
+On upgrade, the initial digit choice follows the previously saved language. Both choices are then saved separately; changing either preserves Quran progress and bookmarks.
+
 ## Appearance and reminder behavior
 
 - **System** follows the Mac's appearance; switching back to it clears a previous Light or Dark override.
@@ -155,11 +159,11 @@ Sukoon uses **Swift, SwiftUI, and AppKit**—no web runtime, third-party Swift d
 
 Preferences and reading state are stored locally in `UserDefaults` under the app's `app.sukoon.mac` domain:
 
-- Interface language, appearance, and reminder preferences.
+- Interface language, Quran digit style, appearance, and reminder preferences.
 - Automatic Quran position and chosen surah.
 - Unique ayah marks and your bookmark.
 
-**Reset Quran progress** requires confirmation. It clears reading marks, both reading plans, and the bookmark, while preserving language, appearance, and reminder preferences.
+**Reset Quran progress** requires confirmation. It clears reading marks, both reading plans, and the bookmark, while preserving language, Quran digit style, appearance, and reminder preferences.
 
 ## Development
 

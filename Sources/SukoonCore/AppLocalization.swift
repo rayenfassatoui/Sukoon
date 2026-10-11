@@ -8,18 +8,35 @@ public enum AppLanguage: String, Codable, CaseIterable, Identifiable, Sendable {
     public var nativeName: String { self == .arabic ? "العربية" : "English" }
 }
 
-/// Explicit app language, independent of the Mac's language. Bundles are shared across renders.
+public enum QuranNumberStyle: String, Codable, CaseIterable, Identifiable, Sendable {
+    case western, arabic
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .western: "Western (123)"
+        case .arabic: "Arabic (١٢٣)"
+        }
+    }
+}
+
+/// Explicit app language and independent Quran digits. Bundles are shared across renders.
 public struct AppLocalization: Sendable {
     public let language: AppLanguage
     public let locale: Locale
     private let bundle: Bundle
+    private let quranLocale: Locale
 
     private static let englishBundle = languageBundle(.english)
     private static let arabicBundle = languageBundle(.arabic)
+    private static let westernNumberLocale = Locale(identifier: "en_US_POSIX")
+    private static let arabicNumberLocale = Locale(identifier: "ar@numbers=arab")
 
-    public init(language: AppLanguage) {
+    public init(language: AppLanguage, quranNumberStyle: QuranNumberStyle = .western) {
         self.language = language
         locale = Locale(identifier: language == .arabic ? "ar@numbers=arab" : "en")
+        quranLocale = quranNumberStyle == .arabic ? Self.arabicNumberLocale : Self.westernNumberLocale
         bundle = language == .arabic ? Self.arabicBundle : Self.englishBundle
     }
 
@@ -35,6 +52,10 @@ public struct AppLocalization: Sendable {
 
     public func number(_ value: Int) -> String {
         value.formatted(.number.locale(locale))
+    }
+
+    public func quranNumber(_ value: Int) -> String {
+        value.formatted(.number.grouping(.never).locale(quranLocale))
     }
 
     public func percent(_ value: Double, fractionDigits: Int = 1) -> String {
@@ -55,7 +76,7 @@ public struct AppLocalization: Sendable {
 
     public func reference(_ reference: VerseReference) -> String {
         // References are always surah:ayah, even inside an Arabic sentence.
-        "\u{2066}\(number(reference.surahID)):\(number(reference.verseID))\u{2069}"
+        "\u{2066}\(quranNumber(reference.surahID)):\(quranNumber(reference.verseID))\u{2069}"
     }
 
     public func reminderTitle(_ content: ReminderContent, library: QuranLibrary) -> String {
