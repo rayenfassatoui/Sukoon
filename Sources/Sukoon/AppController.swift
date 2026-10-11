@@ -7,12 +7,16 @@ import SukoonCore
 final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPopoverDelegate {
     let store: AppStore
     let navigation = AppNavigation()
+    let reminderClock = ReminderClock()
     private var statusItem: NSStatusItem?
     private let popover = NSPopover()
     private var workspace: NSWindow?
     private var reminderPanel: ReminderPanel?
     private var timer: Timer?
     private var reminderDismissalTimer: Timer?
+    private var availabilityTimer: Timer?
+    private var displayedReminderID: UUID?
+    private var displayedReminderIsPreview = false
     private var popoverDismissalTimer: Timer?
     private var scheduledConfiguration: ScheduleConfiguration?
     private var nativeLanguage: AppLanguage?
@@ -55,6 +59,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
         timer?.invalidate()
         reminderDismissalTimer?.invalidate()
         popoverDismissalTimer?.invalidate()
+        availabilityTimer?.invalidate()
+        NotificationCenter.default.removeObserver(self)
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         DistributedNotificationCenter.default().removeObserver(self)
     }
@@ -76,10 +82,10 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
         statusItem = item
         popover.behavior = .transient
         popover.delegate = self
-        popover.contentSize = NSSize(width: 360, height: 240)
+        popover.contentSize = NSSize(width: 360, height: 288)
         popover.contentViewController = NSHostingController(rootView:
             ThemeRoot(store: store) {
-                MenuBarView(store: store, onOpen: { [weak self] section in
+                MenuBarView(store: store, reminderClock: reminderClock, onOpen: { [weak self] section in
                     guard let self else { return }
                     if section == .quran,
                        let reference = (self.store.lastReminder ?? self.store.previewReminder())?.reference {
@@ -95,6 +101,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
     }
 
     @objc private func togglePopover() {
+        reminderClock.now = Date()
+        updateReminderAvailability()
         guard let button = statusItem?.button else { return }
         if popover.isShown {
             popover.performClose(nil)
@@ -132,7 +140,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
             window.setFrameAutosaveName("SukoonWorkspace")
             window.contentViewController = NSHostingController(rootView:
                 ThemeRoot(store: store) {
-                    WorkspaceView(store: store, navigation: navigation, onPreview: { [weak self] in
+                    WorkspaceView(store: store, navigation: navigation, reminderClock: reminderClock, onPreview: { [weak self] in
                         self?.presentReminder(preview: true)
                     })
                 }
@@ -145,10 +153,12 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    /// Replaces a single panel rather than stacking reminders. Preview never consumes progress.
+    /// A single panel is reused. Scheduled delivery never replaces a visible panel or consumes preview progress.
     @discardableResult
     func presentReminder(preview: Bool) -> Bool {
-        guard preview || (sessionAvailable && store.canScheduleReminder) else { return false }
+        let now = Date()
+        guard preview || (sessionAvailable && store.canDeliverReminder(at: now)) else { return false }
+        guard preview || reminderPanel?.isVisible != true else { return false }
         guard let content = preview ? store.previewReminder() : store.nextReminder() else { return false }
         if reminderPanel == nil {
             let panel = ReminderPanel(contentRect: NSRect(x: 0, y: 0, width: 400, height: 280),
@@ -166,13 +176,16 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
             reminderPanel = panel
         }
         guard let panel = reminderPanel else { return false }
+        displayedReminderID = content.id
+        displayedReminderIsPreview = preview
         panel.contentViewController = NSHostingController(rootView:
             ThemeRoot(store: store) {
                 ReminderView(store: store, content: content, isPreview: preview,
                              onDismiss: { [weak self] in self?.dismissReminder() },
                              onRead: { [weak self] in
                     guard let self else { return }
-                    if !preview {
+                    guard self.displayedReminderID == content.id, self.reminderPanel?.isVisible == true else { return }
+                    if !preview, self.sessionAvailable, self.store.canDeliverReminder(at: Date()) {
                         self.store.acknowledge(content)
                         self.scheduleNextReminder()
                     }
@@ -198,11 +211,15 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
         reminderDismissalTimer?.invalidate()
         reminderDismissalTimer = nil
         if panel.isVisible {
-            let timer = Timer(timeInterval: 10, repeats: false) { [weak self] _ in
+            let timer = Timer(timeInterval: TimeInterval(store.settings.reminderAutoCloseSeconds), repeats: false) { [weak self] _ in
                 MainActor.assumeIsolated { self?.dismissReminder() }
             }
             RunLoop.main.add(timer, forMode: .common)
             reminderDismissalTimer = timer
+        }
+        if !preview && !store.canDeliverReminder(at: Date()) {
+            dismissReminder()
+            return false
         }
         if !preview && panel.isVisible && store.settings.autoAdvance {
             store.acknowledge(content)
@@ -214,24 +231,75 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
         reminderDismissalTimer?.invalidate()
         reminderDismissalTimer = nil
         reminderPanel?.orderOut(nil)
+        displayedReminderID = nil
+        displayedReminderIsPreview = false
     }
 
     func scheduleNextReminder() {
         timer?.invalidate()
         timer = nil
         scheduledConfiguration = scheduleConfiguration
-        guard !stopping, sessionAvailable, store.canScheduleReminder else { return }
-        let interval = TimeInterval(max(30, store.settings.intervalSeconds))
-        let timer = Timer(timeInterval: interval, repeats: false) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
+        let now = Date()
+        reminderClock.now = now
+        updateReminderAvailability()
+        scheduleAvailabilityChange(after: now)
+        guard !stopping, sessionAvailable, let date = store.nextReminderDate(after: now) else { return }
+        let timer = Timer(fire: date, interval: 0, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, !self.stopping else { return }
                 self.presentReminder(preview: false)
                 self.scheduleNextReminder()
             }
         }
-        timer.tolerance = min(2, interval / 20)
+        timer.tolerance = min(2, date.timeIntervalSince(now) / 20)
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
+    }
+
+    private func updateReminderAvailability() {
+        if !displayedReminderIsPreview,
+           !store.settings.remindersEnabled || store.reminderSuspensionEnd(at: reminderClock.now) != nil {
+            dismissReminder()
+        }
+        updateStatus()
+    }
+
+    /// One-shot boundary events keep visible panels and status in sync without polling or resetting a due reminder.
+    private func scheduleAvailabilityChange(after now: Date) {
+        availabilityTimer?.invalidate()
+        availabilityTimer = nil
+        guard !stopping, sessionAvailable else { return }
+        var nextChange = store.snoozedUntil.flatMap { $0 > now ? $0 : nil }
+        if store.settings.quietHoursEnabled,
+           store.settings.quietHoursStartMinute != store.settings.quietHoursEndMinute {
+            let calendar = Calendar.current
+            for minute in [store.settings.quietHoursStartMinute, store.settings.quietHoursEndMinute] {
+                let components = DateComponents(hour: minute / 60, minute: minute % 60, second: 0)
+                for policy in [Calendar.RepeatedTimePolicy.first, .last] {
+                    if let date = calendar.nextDate(after: now, matching: components,
+                                                    matchingPolicy: .nextTime, repeatedTimePolicy: policy),
+                       nextChange == nil || date < nextChange! {
+                        nextChange = date
+                    }
+                }
+            }
+            if let date = calendar.timeZone.nextDaylightSavingTimeTransition(after: now),
+               nextChange == nil || date < nextChange! {
+                nextChange = date
+            }
+        }
+        guard let date = nextChange else { return }
+        let timer = Timer(fire: date, interval: 0, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, !self.stopping else { return }
+                let now = Date()
+                self.reminderClock.now = now
+                self.updateReminderAvailability()
+                self.scheduleAvailabilityChange(after: now)
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        availabilityTimer = timer
     }
 
     private struct ScheduleConfiguration: Equatable {
@@ -239,6 +307,10 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
         let mode: ReminderMode
         let enabled: Bool
         let nextReference: VerseReference?
+        let quietHoursEnabled: Bool
+        let quietHoursStartMinute: Int
+        let quietHoursEndMinute: Int
+        let snoozedUntil: Date?
     }
 
     private var scheduleConfiguration: ScheduleConfiguration {
@@ -252,7 +324,11 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
             nextReference = nil
         }
         return ScheduleConfiguration(interval: store.settings.intervalSeconds, mode: store.settings.mode,
-                                     enabled: store.settings.remindersEnabled, nextReference: nextReference)
+                                     enabled: store.settings.remindersEnabled, nextReference: nextReference,
+                                     quietHoursEnabled: store.settings.quietHoursEnabled,
+                                     quietHoursStartMinute: store.settings.quietHoursStartMinute,
+                                     quietHoursEndMinute: store.settings.quietHoursEndMinute,
+                                     snoozedUntil: store.snoozedUntil)
     }
 
     private func observeStore() {
@@ -262,6 +338,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
             _ = store.readVerseCount
             _ = store.automaticVerseOffset
             _ = store.celebration
+            _ = store.snoozedUntil
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self, !self.stopping else { return }
@@ -276,16 +353,21 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
     }
 
     private func updateStatus() {
-        statusItem?.button?.image = NSImage(systemSymbolName: store.canScheduleReminder ? "moon.stars" : "moon.zzz",
-                                            accessibilityDescription: AppLocalization(language: store.settings.language).text("Sukoon"))
+        let now = reminderClock.now
+        let l10n = AppLocalization(language: store.settings.language)
+        statusItem?.button?.image = NSImage(systemSymbolName: store.canDeliverReminder(at: now) ? "moon.stars" : "moon.zzz",
+                                            accessibilityDescription: l10n.text("Sukoon"))
         statusItem?.button?.image?.isTemplate = true
+        let suspension = ReminderSuspensionStatus(store: store, now: now)
+        statusItem?.button?.toolTip = suspension.map {
+            "\(l10n.text("Sukoon — a moment of remembrance"))\n\($0.title(l10n: l10n))\n\($0.detail(l10n: l10n))"
+        } ?? l10n.text("Sukoon — a moment of remembrance")
     }
 
     private func updateLanguage() {
         guard nativeLanguage != store.settings.language else { return }
         nativeLanguage = store.settings.language
         let l10n = AppLocalization(language: store.settings.language)
-        statusItem?.button?.toolTip = l10n.text("Sukoon — a moment of remembrance")
         workspace?.title = l10n.text("Sukoon")
         NSApp.mainMenu = Self.makeMainMenu(language: store.settings.language)
     }
@@ -348,6 +430,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
         let distributed = DistributedNotificationCenter.default()
         distributed.addObserver(self, selector: #selector(screenLocked), name: .init("com.apple.screenIsLocked"), object: nil)
         distributed.addObserver(self, selector: #selector(screenUnlocked), name: .init("com.apple.screenIsUnlocked"), object: nil)
+        let clockCenter = NotificationCenter.default
+        clockCenter.addObserver(self, selector: #selector(wallClockDidChange), name: .NSSystemClockDidChange, object: nil)
+        clockCenter.addObserver(self, selector: #selector(wallClockDidChange), name: .NSSystemTimeZoneDidChange, object: nil)
     }
 
     @objc private func willSleep() { sleeping = true; suspendDelivery() }
@@ -358,13 +443,22 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
     @objc private func sessionDidBecomeActive() { inactiveSession = false; scheduleNextReminder() }
     @objc private func screenLocked() { locked = true; suspendDelivery() }
     @objc private func screenUnlocked() { locked = false; scheduleNextReminder() }
+    @objc private func wallClockDidChange() { scheduleNextReminder() }
 
     private func suspendDelivery() {
         timer?.invalidate()
         timer = nil
+        availabilityTimer?.invalidate()
+        availabilityTimer = nil
         dismissReminder()
         popover.performClose(nil)
     }
+}
+
+@MainActor
+@Observable
+final class ReminderClock {
+    var now = Date()
 }
 
 @MainActor

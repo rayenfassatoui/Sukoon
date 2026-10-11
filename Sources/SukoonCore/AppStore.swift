@@ -8,7 +8,10 @@ public final class AppStore {
 
     public var settings: AppSettings {
         didSet {
-            if oldValue.mode != settings.mode || oldValue.remindersEnabled != settings.remindersEnabled {
+            if oldValue.mode != settings.mode || oldValue.remindersEnabled != settings.remindersEnabled
+                || oldValue.quietHoursEnabled != settings.quietHoursEnabled
+                || oldValue.quietHoursStartMinute != settings.quietHoursStartMinute
+                || oldValue.quietHoursEndMinute != settings.quietHoursEndMinute {
                 invalidatePendingReminder()
             }
             persist()
@@ -26,8 +29,15 @@ public final class AppStore {
 
     public private(set) var lastReminder: ReminderContent?
 
-    public private(set) var bookmark: VerseReference? {
+    public private(set) var bookmarks: [VerseReference] {
         didSet { persist() }
+    }
+
+    public private(set) var snoozedUntil: Date? {
+        didSet {
+            if oldValue != snoozedUntil { invalidatePendingReminder() }
+            persist()
+        }
     }
 
     public private(set) var automaticVerseOffset: Int
@@ -43,6 +53,7 @@ public final class AppStore {
     @ObservationIgnored private var surahReminderID: UUID
     @ObservationIgnored private var automaticReminderID: UUID
     @ObservationIgnored private var automaticPreviewID: UUID
+    @ObservationIgnored private var applyingReadingBackup = false
     private var readVerses: Set<VerseReference> {
         didSet { persist() }
     }
@@ -88,12 +99,11 @@ public final class AppStore {
         } else {
             selectedSurahID = nil
         }
-        if let savedBookmark = state.bookmark,
-           Self.contains(savedBookmark, in: library) {
-            bookmark = savedBookmark
-        } else {
-            bookmark = nil
+        var seenBookmarks = Set<VerseReference>()
+        bookmarks = state.bookmarks.filter {
+            Self.contains($0, in: library) && seenBookmarks.insert($0).inserted
         }
+        snoozedUntil = state.snoozedUntil
         automaticVerseOffset = min(max(state.automaticVerseOffset, 0), library.verseCount)
         let validReadVerses = Set(state.readVerses.filter { Self.contains($0, in: library) })
         readVerses = validReadVerses
@@ -158,6 +168,42 @@ public final class AppStore {
         }
     }
 
+    public func reminderSuspensionEnd(at now: Date = Date(), calendar: Calendar = .current) -> Date? {
+        let quietEnd = settings.quietHoursEnd(containing: now, calendar: calendar)
+        let snoozeEnd = snoozedUntil.flatMap { $0 > now ? $0 : nil }
+        let candidate: Date
+        switch (quietEnd, snoozeEnd) {
+        case let (quiet?, snooze?): candidate = max(quiet, snooze)
+        case let (quiet?, nil): candidate = quiet
+        case let (nil, snooze?): candidate = snooze
+        case (nil, nil): return nil
+        }
+        return settings.quietHoursEnd(containing: candidate, calendar: calendar) ?? candidate
+    }
+
+    public func canDeliverReminder(at now: Date = Date(), calendar: Calendar = .current) -> Bool {
+        canScheduleReminder && reminderSuspensionEnd(at: now, calendar: calendar) == nil
+    }
+
+    public func nextReminderDate(after now: Date = Date(), calendar: Calendar = .current) -> Date? {
+        guard canScheduleReminder else { return nil }
+        var candidate = now.addingTimeInterval(TimeInterval(max(30, settings.intervalSeconds)))
+        if let snoozedUntil { candidate = max(candidate, snoozedUntil) }
+        return settings.quietHoursEnd(containing: candidate, calendar: calendar) ?? candidate
+    }
+
+    public func snooze(for seconds: Int, now: Date = Date()) {
+        guard seconds > 0 else {
+            cancelSnooze()
+            return
+        }
+        snoozedUntil = now.addingTimeInterval(TimeInterval(seconds))
+    }
+
+    public func cancelSnooze() {
+        snoozedUntil = nil
+    }
+
     public func readCount(in surahID: Int) -> Int {
         readCountsBySurah[surahID, default: 0]
     }
@@ -205,14 +251,66 @@ public final class AppStore {
         }
     }
 
-    public func setBookmark(surahID: Int, verseID: Int) {
+    public func toggleBookmark(surahID: Int, verseID: Int) {
         let reference = VerseReference(surahID: surahID, verseID: verseID)
         guard Self.contains(reference, in: library) else { return }
-        bookmark = reference
+        if bookmarks.contains(reference) {
+            bookmarks.removeAll { $0 == reference }
+        } else {
+            bookmarks.insert(reference, at: 0)
+        }
+    }
+
+    public func removeBookmark(_ reference: VerseReference) {
+        bookmarks.removeAll { $0 == reference }
+    }
+
+    public func isBookmarked(surahID: Int, verseID: Int) -> Bool {
+        bookmarks.contains(VerseReference(surahID: surahID, verseID: verseID))
+    }
+
+    public func exportReadingBackup() throws -> Data {
+        let backup = ReadingBackup(
+            formatVersion: 1,
+            readVerses: readVerses.sorted { ($0.surahID, $0.verseID) < ($1.surahID, $1.verseID) },
+            automaticVerseOffset: automaticVerseOffset,
+            selectedSurahID: selectedSurahID,
+            bookmarks: bookmarks
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return try encoder.encode(backup)
+    }
+
+    public func importReadingBackup(_ data: Data) throws {
+        let backup = try JSONDecoder().decode(ReadingBackup.self, from: data)
+        let l10n = AppLocalization(language: settings.language)
+        guard backup.formatVersion == 1 else {
+            throw ReadingBackupError(message: l10n.text("This backup version is not supported."))
+        }
+        guard (0...library.verseCount).contains(backup.automaticVerseOffset),
+              backup.selectedSurahID == nil || library.surah(backup.selectedSurahID!) != nil,
+              backup.readVerses.allSatisfy({ Self.contains($0, in: library) }),
+              backup.bookmarks.allSatisfy({ Self.contains($0, in: library) }) else {
+            throw ReadingBackupError(message: l10n.text("The backup contains invalid Quran references or reading positions."))
+        }
+        let restoredMarks = Set(backup.readVerses)
+        var seenBookmarks = Set<VerseReference>()
+        let restoredBookmarks = backup.bookmarks.filter { seenBookmarks.insert($0).inserted }
+        applyingReadingBackup = true
+        automaticVerseOffset = backup.automaticVerseOffset
+        selectedSurahID = backup.selectedSurahID
+        readVerses = restoredMarks
+        readCountsBySurah = Dictionary(grouping: restoredMarks, by: \.surahID).mapValues(\.count)
+        bookmarks = restoredBookmarks
+        celebration = nil
+        invalidatePendingReminder()
+        applyingReadingBackup = false
+        persist()
     }
 
     public func nextReminder() -> ReminderContent? {
-        guard settings.remindersEnabled else {
+        guard canDeliverReminder() else {
             lastReminder = nil
             return nil
         }
@@ -268,7 +366,7 @@ public final class AppStore {
         readVerses = []
         readCountsBySurah = [:]
         selectedSurahID = nil
-        bookmark = nil
+        bookmarks = []
         lastReminder = nil
         celebration = nil
         reminderSequence = 0
@@ -383,10 +481,12 @@ public final class AppStore {
     }
 
     private func persist() {
+        guard !applyingReadingBackup else { return }
         let state = PersistedState(
             settings: settings,
             selectedSurahID: selectedSurahID,
-            bookmark: bookmark,
+            bookmarks: bookmarks,
+            snoozedUntil: snoozedUntil,
             readVerses: readVerses.sorted {
                 ($0.surahID, $0.verseID) < ($1.surahID, $1.verseID)
             },
@@ -418,24 +518,31 @@ public final class AppStore {
 private struct PersistedState: Codable {
     var settings: AppSettings
     var selectedSurahID: Int?
-    var bookmark: VerseReference?
+    var bookmarks: [VerseReference]
+    var snoozedUntil: Date?
     var readVerses: [VerseReference]
     var automaticVerseOffset: Int
 
     private enum CodingKeys: String, CodingKey {
-        case settings, selectedSurahID, bookmark, readVerses, automaticVerseOffset
+        case settings, selectedSurahID, bookmarks, snoozedUntil, readVerses, automaticVerseOffset
+    }
+
+    private enum LegacyCodingKeys: String, CodingKey {
+        case bookmark
     }
 
     init(
         settings: AppSettings = AppSettings(),
         selectedSurahID: Int? = nil,
-        bookmark: VerseReference? = nil,
+        bookmarks: [VerseReference] = [],
+        snoozedUntil: Date? = nil,
         readVerses: [VerseReference] = [],
         automaticVerseOffset: Int = 0
     ) {
         self.settings = settings
         self.selectedSurahID = selectedSurahID
-        self.bookmark = bookmark
+        self.bookmarks = bookmarks
+        self.snoozedUntil = snoozedUntil
         self.readVerses = readVerses
         self.automaticVerseOffset = automaticVerseOffset
     }
@@ -444,7 +551,13 @@ private struct PersistedState: Codable {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         settings = try values.decode(AppSettings.self, forKey: .settings)
         selectedSurahID = try values.decodeIfPresent(Int.self, forKey: .selectedSurahID)
-        bookmark = try values.decodeIfPresent(VerseReference.self, forKey: .bookmark)
+        if let savedBookmarks = try values.decodeIfPresent([VerseReference].self, forKey: .bookmarks) {
+            bookmarks = savedBookmarks
+        } else {
+            let legacy = try decoder.container(keyedBy: LegacyCodingKeys.self)
+            bookmarks = try legacy.decodeIfPresent(VerseReference.self, forKey: .bookmark).map { [$0] } ?? []
+        }
+        snoozedUntil = try values.decodeIfPresent(Date.self, forKey: .snoozedUntil)
         readVerses = try values.decode([VerseReference].self, forKey: .readVerses)
         automaticVerseOffset = try values.decodeIfPresent(Int.self, forKey: .automaticVerseOffset) ?? 0
     }
@@ -452,4 +565,17 @@ private struct PersistedState: Codable {
 
 private struct SavedLanguage: Decodable {
     let settings: AppSettings
+}
+
+private struct ReadingBackup: Codable {
+    let formatVersion: Int
+    let readVerses: [VerseReference]
+    let automaticVerseOffset: Int
+    let selectedSurahID: Int?
+    let bookmarks: [VerseReference]
+}
+
+private struct ReadingBackupError: LocalizedError {
+    let message: String
+    var errorDescription: String? { message }
 }

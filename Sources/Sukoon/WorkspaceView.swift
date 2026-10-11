@@ -4,11 +4,13 @@ import SukoonCore
 struct WorkspaceView: View {
     @Bindable private var store: AppStore
     @Bindable private var navigation: AppNavigation
+    private let reminderClock: ReminderClock
     private let onPreview: () -> Void
 
-    init(store: AppStore, navigation: AppNavigation, onPreview: @escaping () -> Void) {
+    init(store: AppStore, navigation: AppNavigation, reminderClock: ReminderClock, onPreview: @escaping () -> Void) {
         self.store = store
         self.navigation = navigation
+        self.reminderClock = reminderClock
         self.onPreview = onPreview
     }
 
@@ -27,7 +29,7 @@ struct WorkspaceView: View {
             Group {
                 switch navigation.section {
                 case .today:
-                    TodayView(store: store, navigation: navigation, onPreview: onPreview)
+                    TodayView(store: store, navigation: navigation, reminderClock: reminderClock, onPreview: onPreview)
                 case .quran:
                     ReaderView(store: store, navigation: navigation)
                 case .journey:
@@ -117,14 +119,20 @@ private struct TodayView: View {
     @Environment(\.sukoonLocalization) private var l10n
     let store: AppStore
     let navigation: AppNavigation
+    let reminderClock: ReminderClock
     let onPreview: () -> Void
     @State private var remembrance: ReminderContent?
 
-    init(store: AppStore, navigation: AppNavigation, onPreview: @escaping () -> Void) {
+    init(store: AppStore, navigation: AppNavigation, reminderClock: ReminderClock, onPreview: @escaping () -> Void) {
         self.store = store
         self.navigation = navigation
+        self.reminderClock = reminderClock
         self.onPreview = onPreview
         _remembrance = State(initialValue: store.previewReminder())
+    }
+
+    private var suspension: ReminderSuspensionStatus? {
+        ReminderSuspensionStatus(store: store, now: reminderClock.now)
     }
 
     private var statusTitle: String {
@@ -136,6 +144,9 @@ private struct TodayView: View {
         }
         if !store.canScheduleReminder {
             return l10n.text("No reminder is scheduled", table: "Workspace")
+        }
+        if let suspension {
+            return suspension.title(l10n: l10n)
         }
         let seconds = store.settings.intervalSeconds
         let subMinute = seconds < 60
@@ -158,6 +169,9 @@ private struct TodayView: View {
         }
         if store.settings.mode == .automatic && store.isAutomaticComplete {
             return l10n.text("Your automatic full-Quran reading is complete.", table: "Workspace")
+        }
+        if let suspension {
+            return suspension.detail(l10n: l10n)
         }
         if store.settings.autoAdvance && store.settings.mode == .surah {
             return l10n.text("Delivered chosen-surah verses advance after the panel appears.", table: "Workspace")
@@ -240,7 +254,7 @@ private struct TodayView: View {
 
                 HStack(alignment: .top, spacing: 18) {
                     VStack(alignment: .leading, spacing: 15) {
-                        Image(systemName: store.settings.remindersEnabled ? "bell.badge" : "bell.slash")
+                        Image(systemName: store.canDeliverReminder(at: reminderClock.now) ? "bell.badge" : "bell.slash")
                             .font(.title2)
                             .foregroundStyle(palette.accent)
                         Text(statusTitle)

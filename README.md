@@ -32,7 +32,7 @@
   <img src="assets/screenshots/system-dark-popover.png" alt="Compact dark menu bar popover showing Al-Fatihah 1:1, its reference, and reader and menu controls" width="360">
 </p>
 
-The menu bar stays minimal: Arabic text, a surah reference, and access to the reader and settings. The popover uses a configurable auto-close delay; scheduled reminders and previews close automatically after **10 seconds**.
+The menu bar stays minimal: Arabic text, a surah reference, and access to the reader and settings. Both the popover and reminder panels have independently configurable auto-close delays, defaulting to **10 seconds**.
 
 <p align="center">
   <img src="assets/screenshots/reader-automatic-and-manual.png" alt="Sukoon's dark Quran reader with a surah list, Al-Fatihah, and separate automatic and chosen-surah reading controls" width="960">
@@ -55,14 +55,17 @@ The menu bar stays minimal: Arabic text, a surah reference, and access to the re
 
 ## Features
 
-- **Small, timed reading moments.** A reminder every two minutes by default, configurable from 30 seconds to two hours, with pause/resume controls.
-- **The complete Quran, offline.** All 114 surahs and 6,236 ayahs in Arabic Uthmani text. Search by Arabic name, transliteration, or surah number, including Arabic digits.
+- **Small, timed reading moments.** A reminder every two minutes by default, configurable from 30 seconds to two hours, with pause/resume, local quiet hours, and temporary snooze controls.
+- **The complete Quran, offline.** All 114 surahs and 6,236 ayahs in Arabic Uthmani text. Search chapter names/numbers or Arabic ayah text without typing its vocalization; direct references such as `2:255` also accept Arabic digits.
 - **Automatic Quran reading.** Move from Al-Fatihah to An-Nas, one ayah at a time, with a separately saved position.
 - **Choose your own surah.** Follow a specific chapter without resetting the automatic Quran journey.
-- **A full reader.** Read at your own pace, mark ayahs, save a bookmark, and resume later.
+- **A full reader.** Read at your own pace, mark ayahs, save multiple bookmarks, and jump back to an exact verse.
 - **English and Arabic.** An immediately switchable interface with right-to-left layout in Arabic and independently selectable Quran digits.
 - **Native appearance.** System, Light, or Dark theme; Jade, Gold, or Rose accents; adjustable Arabic text size.
 - **Completion moments.** Surah completion feedback and a Quran completion celebration with a Quranic dua. Confetti respects Reduce Motion.
+- **Native startup control.** An OS-backed **Run at startup** switch with explicit approval/error feedback.
+- **Updates on request.** Check the public GitHub release only when you press **Check for updates**.
+- **Portable reading backup.** Export/import versioned JSON without replacing language, appearance, or reminder preferences.
 
 ## Getting started
 
@@ -74,6 +77,8 @@ The menu bar stays minimal: Arabic text, a surah reference, and access to the re
 Verified configuration: **macOS 27, Apple Silicon, Xcode 27, Swift 6.4**. Other configurations have not been verified.
 
 ### Download and install
+
+The features described here are included in **Sukoon 1.1.0**. Use the app ZIP attached to its GitHub release; the source-code archives are for building from source.
 
 1. Open the [latest GitHub release](https://github.com/rayenfassatoui/Sukoon/releases/latest) and download the **macOS Apple Silicon (`arm64`) app ZIP** under **Assets**, not the automatically generated source-code archives.
 2. Unzip it and move **`Sukoon.app`** into **`/Applications`**.
@@ -91,15 +96,29 @@ swift Tools/Bundle.swift
 open build/Sukoon.app
 ```
 
-The bundler builds a release executable, packages the offline Quran, license notices, English and Arabic resources, and app icon, then ad-hoc signs the app. It finds a full Xcode installation without changing your system-wide `xcode-select` setting. Set `DEVELOPER_DIR` if you need to select a specific Xcode installation.
+The bundler builds an arm64 release executable, packages the offline Quran, license notices, English and Arabic resources, and app icon, then ad-hoc signs the app by default. It also creates **`build/Sukoon-v1.1.0-macos-arm64.zip`** and **`build/SHA256SUMS`**. It finds a full Xcode installation without changing your system-wide `xcode-select` setting. Set `DEVELOPER_DIR` if you need to select a specific Xcode installation.
 
 You can move **`build/Sukoon.app`** into **`/Applications`**. The bundle is self-contained; it does not need the source checkout to run.
+
+### Developer ID signing and notarization
+
+Public notarization requires a **Developer ID Application** certificate and its private key in Keychain, plus authenticated Apple notarization credentials. An **Apple Development** certificate is not a substitute.
+
+1. Find your valid distribution identity with `security find-identity -v -p codesigning`.
+2. Store notarization credentials interactively with `xcrun notarytool store-credentials Sukoon`. Credentials stay in Keychain.
+3. Set `SUKOON_DEVELOPER_ID` to the actual Developer ID certificate name or SHA-1, then run:
+
+```sh
+swift Tools/Bundle.swift --sign-identity "$SUKOON_DEVELOPER_ID" --notarize-profile Sukoon
+```
+
+The tool signs with hardened runtime and a secure timestamp, waits for Apple's **Accepted** result, staples and validates the ticket, then checks Gatekeeper before creating the final ZIP and checksum. Missing prerequisites fail before replacing generated output. Without these options, the artifact is explicitly **ad-hoc signed and not notarized**. Use `swift Tools/Bundle.swift --help` for all options.
 
 ### First use
 
 1. Open Sukoon. Use the menu bar icon to access the compact Quran view.
-2. Open **Settings** from the **…** menu to choose your language, menu bar auto-close delay, reminder interval, content, and appearance.
-3. Open the **Quran** reader to browse chapters, bookmark a verse, or choose a reading plan.
+2. Open **Settings** from the **…** menu to choose your language, startup behavior, auto-close delays, reminder interval, quiet hours, content, and appearance.
+3. Open the **Quran** reader to search chapters/ayahs, bookmark verses, or choose a reading plan.
 
 Closing the main window keeps Sukoon running in the menu bar. Use **Quit** to stop the app and its reminders.
 
@@ -136,7 +155,7 @@ This mode follows the next globally unmarked ayah in that chapter. Reading marks
 > [!IMPORTANT]
 > **Delivered is not the same as read.** With **Automatic delivered progress** enabled—the default—a reading-plan ayah is marked only after its real scheduled reminder panel is successfully shown. This records delivery, not proof that you read it.
 
-Turn that setting off to require **Read & continue** in the reminder panel, or press **Return**, before advancing. If you do not confirm the ayah, it remains the next reminder. The 10-second timeout **never** acts as manual confirmation.
+Turn that setting off to require **Read & continue** in the reminder panel, or press **Return**, before advancing. If you do not confirm the ayah, it remains the next reminder. The configured panel timeout **never** acts as manual confirmation.
 
 The reader's **Mark read** action records your manual confirmation. Previews, random ayahs, and dua reminders do not mark reading progress. Repeated marks of the same ayah are counted only once.
 
@@ -155,21 +174,30 @@ On upgrade, the initial digit choice follows the previously saved language. Both
 - **System** follows the Mac's appearance; switching back to it clears a previous Light or Dark override.
 - Menu bar auto-close: **10 seconds** by default. Choose **10, 15, or 20 seconds** in **Settings → Menu bar → Auto-close after**. Your choice is saved and applies the next time you open the popover.
 - Reminder intervals: **30 seconds**, or **1, 2, 5, 10, 15, 30, 60, or 120 minutes**. The default remains **2 minutes**; existing saved intervals are preserved.
-- Scheduled reminders and previews use one compact, scrollable panel. A new reminder replaces the old one and starts a fresh 10-second timeout; panels never stack.
+- Reminder/preview auto-close: **10 seconds** by default; choose **10, 15, 20, 30, or 60 seconds** in **Settings → Reminders → Reminder auto-close**. Scheduled panels never stack or replace a still-visible panel; intentional previews replace the current panel without advancing progress.
 - Close a panel early with its close control or **Escape**. For longer ayahs, use the full Quran reader.
 - Reminders suspend while the Mac is asleep, locked, or the screen or user session is inactive. Resuming schedules one fresh interval—there is no catch-up burst.
+- **Quiet hours:** enable in Settings and choose local start/end times. Overnight windows are supported; the start is inclusive and the end exclusive. Equal times mean no quiet interval. Suppressed reminders never advance progress or produce a catch-up burst.
+- **Snooze:** pause for **15, 30, or 60 minutes** from Settings or the menu bar. The deadline survives relaunch; use **Cancel snooze** to end it early. Quiet hours still apply when snooze ends. Intentional previews remain available during either suspension.
+
+## Startup, updates, and backup
+
+- **Settings → Startup → Run at startup** uses macOS login-item registration, not a separately saved app Boolean. If approval is needed, use **Open Login Items** and approve Sukoon. Remove any older manually added login-item entry in System Settings before relying on the in-app switch.
+- **Settings → Updates → Check for updates** queries the public GitHub latest-release API, compares it with the actual installed bundle version, and offers its validated release page when newer. It never downloads or runs an updater automatically. Errors remain visible; normal Quran use needs no network.
+- **Settings → Reading backup** exports read marks, the automatic cursor, chosen surah, and all bookmarks to versioned JSON. Import explicitly confirms replacement, validates all Quran references/positions before changing anything, and preserves other settings. Cancelled or invalid imports leave existing progress unchanged.
+- Existing single-bookmark saved state migrates to the bookmark collection without resetting the reader or either reading plan.
 
 ## Privacy and saved state
 
-Sukoon uses **Swift, SwiftUI, and AppKit**—no web runtime, third-party Swift dependencies, account, telemetry, or runtime network requirement. Quran content is bundled with the app. Attribution links open externally only when you choose them.
+Sukoon uses **Swift, SwiftUI, AppKit, and ServiceManagement**—no web runtime, third-party Swift dependencies, account, telemetry, or runtime network requirement. Quran content is bundled with the app. Only an explicit update check contacts GitHub; attribution and release links open externally only when you choose them.
 
 Preferences and reading state are stored locally in `UserDefaults` under the app's `app.sukoon.mac` domain:
 
-- Interface language, Quran digit style, appearance, and reminder preferences.
+- Interface language, Quran digit style, appearance, reminder preferences, quiet hours, and a snooze deadline.
 - Automatic Quran position and chosen surah.
-- Unique ayah marks and your bookmark.
+- Unique ayah marks and multiple bookmarks.
 
-**Reset Quran progress** requires confirmation. It clears reading marks, both reading plans, and the bookmark, while preserving language, Quran digit style, appearance, and reminder preferences.
+**Reset Quran progress** requires confirmation. It clears reading marks, both reading plans, and all bookmarks, while preserving language, Quran digit style, appearance, and reminder preferences. Launch-at-login registration is managed by macOS, not the saved reading state.
 
 ## Development
 
@@ -196,8 +224,8 @@ open build/Sukoon.app
 | [`Sources/Sukoon`](Sources/Sukoon) | Native lifecycle, menu bar, floating reminders, workspace, reader, settings, journey, and celebrations |
 | [`Sources/SukoonCore`](Sources/SukoonCore) | Quran models and data, localization, persisted state, reading progress, and reminder scheduling |
 | [`Sources/SukoonCore/Resources`](Sources/SukoonCore/Resources) | Pinned Quran data, source notices, license, and English/Arabic string catalogs |
-| [`Tests/SukoonCoreTests`](Tests/SukoonCoreTests) | Dataset integrity, acknowledgement rules, sequence boundaries, persistence, reset, and scheduling tests |
-| [`Tools/Bundle.swift`](Tools/Bundle.swift) | Build, resource packaging, icon generation, and local signing |
+| [`Tests/SukoonCoreTests`](Tests/SukoonCoreTests) | Dataset integrity, search normalization/reference boundaries, acknowledgement, reading sequences, persistence/migration, quiet hours/DST/snooze, and backup validation |
+| [`Tools/Bundle.swift`](Tools/Bundle.swift) | Build, resource packaging, icon generation, local/Developer ID signing, notarization, ZIP, and checksums |
 
 For bug reports, include the macOS version, interface language, reading mode, and steps to reproduce. For build problems, also include the Xcode and Swift versions.
 

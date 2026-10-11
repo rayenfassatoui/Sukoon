@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import Foundation
 import SukoonCore
@@ -10,9 +11,11 @@ struct SettingsView: View {
     let navigation: AppNavigation
     let onPreview: () -> Void
     @State private var showingResetConfirmation = false
+    @State private var services = AppServices()
 
     private let intervalOptions = [30, 60, 120, 300, 600, 900, 1800, 3600, 7200]
     private let menuBarAutoCloseOptions = [10, 15, 20]
+    private let reminderAutoCloseOptions = [10, 15, 20, 30, 60]
 
     private var canPreview: Bool {
         switch store.settings.mode {
@@ -128,6 +131,8 @@ struct SettingsView: View {
                     }
                 }
 
+                startupSection
+
                 settingsSection(l10n.text("Menu bar", table: "Preferences"), symbol: "menubar.rectangle") {
                     SettingsRow(
                         title: l10n.text("Auto-close after", table: "Preferences"),
@@ -195,6 +200,10 @@ struct SettingsView: View {
                         .accessibilityIdentifier("settings.interval")
                         .help(l10n.text("Choose how often reminders appear", table: "Preferences"))
                     }
+
+                    Divider()
+
+                    reminderTimingControls
 
                     Divider()
 
@@ -357,6 +366,10 @@ struct SettingsView: View {
                     }
                 }
 
+                updatesSection
+
+                backupSection
+
                 settingsSection(
                     l10n.text("Data & sources", table: "Preferences"),
                     symbol: "info.circle"
@@ -401,7 +414,7 @@ struct SettingsView: View {
                     SettingsRow(
                         title: l10n.text("Reset Quran progress", table: "Preferences"),
                         detail: l10n.text(
-                            "Removes all marked verses, both reading positions, and your bookmark. Appearance and reminder preferences are preserved.",
+                            "Removes all marked verses, both reading positions, and your bookmarks. Appearance and reminder preferences are preserved.",
                             table: "Preferences"
                         )
                     ) {
@@ -434,6 +447,10 @@ struct SettingsView: View {
                 ? Color(red: 0.055, green: 0.065, blue: 0.06)
                 : palette.canvas
         )
+        .onAppear { services.refreshStartupStatus() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            services.refreshStartupStatus()
+        }
         .confirmationDialog(
             l10n.text("Reset all Quran progress?", table: "Preferences"),
             isPresented: $showingResetConfirmation,
@@ -449,10 +466,212 @@ struct SettingsView: View {
         } message: {
             Text(
                 l10n.text(
-                    "This cannot be undone. Your marked verses, automatic and chosen-surah positions, and bookmark will be removed.",
+                    "This cannot be undone. Your marked verses, automatic and chosen-surah positions, and bookmarks will be removed.",
                     table: "Preferences"
                 )
             )
+        }
+    }
+
+    private var startupSection: some View {
+        settingsSection(l10n.text("Startup", table: "Preferences"), symbol: "power") {
+            SettingsRow(
+                title: l10n.text("Run at startup", table: "Preferences"),
+                detail: l10n.text("Open Sukoon automatically when you log in to your Mac.", table: "Preferences")
+            ) {
+                Toggle("", isOn: Binding(
+                    get: { services.launchAtLoginEnabled },
+                    set: { services.setLaunchAtLogin($0) }
+                ))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .accessibilityLabel(l10n.text("Run at startup", table: "Preferences"))
+                .accessibilityIdentifier("settings.launchAtLogin")
+            }
+            if services.requiresStartupApproval {
+                Label(
+                    l10n.text("Approve Sukoon in Login Items to finish enabling startup.", table: "Preferences"),
+                    systemImage: "exclamationmark.circle"
+                )
+                .foregroundStyle(palette.gold)
+            }
+            Button(l10n.text("Open Login Items", table: "Preferences")) {
+                services.openLoginItemSettings()
+            }
+            .buttonStyle(.bordered)
+            if let error = services.startupError {
+                Text(l10n.format("Startup could not be changed: %@", error, table: "Preferences"))
+                    .font(.callout)
+                    .foregroundStyle(.red)
+            }
+        }
+    }
+
+    private var reminderTimingControls: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            SettingsRow(
+                title: l10n.text("Reminder auto-close", table: "Preferences"),
+                detail: l10n.text("How long reminder and preview panels stay open. Default: 10 seconds.", table: "Preferences")
+            ) {
+                Picker(l10n.text("Reminder auto-close", table: "Preferences"), selection: $store.settings.reminderAutoCloseSeconds) {
+                    ForEach(reminderAutoCloseOptions, id: \.self) { seconds in
+                        Text(l10n.format("%@ sec", l10n.number(seconds), table: "Preferences")).tag(seconds)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: 180)
+                .accessibilityIdentifier("settings.reminderAutoClose")
+            }
+
+            Divider()
+
+            SettingsRow(
+                title: l10n.text("Quiet hours", table: "Preferences"),
+                detail: l10n.text("Pause scheduled reminders during these local times. Matching times mean no quiet interval.", table: "Preferences")
+            ) {
+                Toggle("", isOn: $store.settings.quietHoursEnabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .accessibilityLabel(l10n.text("Quiet hours", table: "Preferences"))
+                    .accessibilityIdentifier("settings.quietHours")
+            }
+            HStack(spacing: 24) {
+                DatePicker(
+                    l10n.text("From", table: "Preferences"),
+                    selection: quietTimeBinding(\.quietHoursStartMinute),
+                    displayedComponents: .hourAndMinute
+                )
+                .accessibilityIdentifier("settings.quietHoursStart")
+                DatePicker(
+                    l10n.text("Until", table: "Preferences"),
+                    selection: quietTimeBinding(\.quietHoursEndMinute),
+                    displayedComponents: .hourAndMinute
+                )
+                .accessibilityIdentifier("settings.quietHoursEnd")
+            }
+            .disabled(!store.settings.quietHoursEnabled)
+
+            Divider()
+
+            SettingsRow(
+                title: l10n.text("Snooze reminders", table: "Preferences"),
+                detail: l10n.text("Pause temporarily; reminders resume automatically.", table: "Preferences")
+            ) {
+                HStack {
+                    Menu(l10n.text("Snooze reminders", table: "Preferences")) {
+                        ForEach([15, 30, 60], id: \.self) { minutes in
+                            Button(l10n.format("For %@ minutes", l10n.number(minutes))) {
+                                store.snooze(for: minutes * 60)
+                            }
+                        }
+                    }
+                    .disabled(!store.settings.remindersEnabled)
+                    .accessibilityIdentifier("settings.snooze")
+                    if let deadline = store.snoozedUntil, deadline > Date() {
+                        Button(l10n.text("Cancel snooze")) { store.cancelSnooze() }
+                            .buttonStyle(.bordered)
+                            .accessibilityIdentifier("settings.cancelSnooze")
+                    }
+                }
+            }
+            if let end = store.reminderSuspensionEnd() {
+                Text(l10n.format(
+                    "Reminders resume %@.",
+                    end.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(l10n.locale))
+                ))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func quietTimeBinding(_ keyPath: WritableKeyPath<AppSettings, Int>) -> Binding<Date> {
+        Binding {
+            let minute = min(max(store.settings[keyPath: keyPath], 0), 1439)
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = .current
+            return calendar.date(from: DateComponents(year: 2001, month: 1, day: 15, hour: minute / 60, minute: minute % 60))!
+        } set: { date in
+            let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+            store.settings[keyPath: keyPath] = (components.hour ?? 0) * 60 + (components.minute ?? 0)
+        }
+    }
+
+    private var updatesSection: some View {
+        settingsSection(l10n.text("Updates", table: "Preferences"), symbol: "arrow.down.circle") {
+            SettingsRow(
+                title: l10n.text("Check for updates", table: "Preferences"),
+                detail: l10n.text("Contacts GitHub only when you check. Sukoon otherwise stays offline.", table: "Preferences")
+            ) {
+                Button(l10n.text(
+                    services.updateState == .checking ? "Checking…" : "Check for updates",
+                    table: "Preferences"
+                )) {
+                    Task { await services.checkForUpdates() }
+                }
+                .buttonStyle(.bordered)
+                .disabled(services.updateState == .checking)
+                .accessibilityIdentifier("settings.checkUpdates")
+            }
+            if let version = services.currentVersion {
+                Text(l10n.format("Installed version: %@", version, table: "Preferences"))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            switch services.updateState {
+            case .idle, .checking:
+                EmptyView()
+            case .upToDate:
+                Label(l10n.text("You are up to date.", table: "Preferences"), systemImage: "checkmark.circle")
+                    .foregroundStyle(palette.success)
+            case let .updateAvailable(version, _):
+                HStack {
+                    Text(l10n.format("Sukoon %@ is available.", version, table: "Preferences"))
+                    Spacer()
+                    Button(l10n.text("Open release page", table: "Preferences")) { services.openRelease() }
+                        .buttonStyle(.borderedProminent)
+                }
+            case let .failed(failure):
+                Text(failure.localizedMessage(l10n))
+                    .font(.callout)
+                    .foregroundStyle(.red)
+            }
+        }
+    }
+
+    private var backupSection: some View {
+        settingsSection(l10n.text("Reading backup", table: "Preferences"), symbol: "externaldrive") {
+            Text(l10n.text(
+                "Save or restore your read marks, both reading positions and bookmarks. Other preferences stay unchanged.",
+                table: "Preferences"
+            ))
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            HStack {
+                Button(l10n.text("Export reading progress")) {
+                    services.exportReadingProgress(from: store, localization: l10n)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("settings.exportProgress")
+                Button(l10n.text("Import reading progress")) {
+                    services.importReadingProgress(into: store, localization: l10n)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("settings.importProgress")
+            }
+            switch services.readingTransferState {
+            case .idle, .cancelled:
+                EmptyView()
+            case .exported:
+                Label(l10n.text("Reading progress exported.", table: "Preferences"), systemImage: "checkmark.circle")
+                    .foregroundStyle(palette.success)
+            case .imported:
+                Label(l10n.text("Reading progress imported.", table: "Preferences"), systemImage: "checkmark.circle")
+                    .foregroundStyle(palette.success)
+            case let .failed(error):
+                Text(error).font(.callout).foregroundStyle(.red)
+            }
         }
     }
 
@@ -571,9 +790,9 @@ struct SettingsView: View {
 
     private var autoAdvanceExplanation: String {
         let source = store.settings.autoAdvance
-            ? "For chosen-surah and automatic Quran reminders, the delivered verse advances after its real panel appears. Previews never count. Reminder panels close after ten seconds."
-            : "For chosen-surah and automatic Quran reminders, press Read & continue to confirm the verse. An unconfirmed verse repeats after the panel closes in ten seconds."
-        return l10n.text(source, table: "Preferences")
+            ? "For chosen-surah and automatic Quran reminders, the delivered verse advances after its real panel appears. Previews never count. Reminder panels close after %@ seconds."
+            : "For chosen-surah and automatic Quran reminders, press Read & continue to confirm the verse. An unconfirmed verse repeats after the panel closes in %@ seconds."
+        return l10n.format(source, l10n.number(store.settings.reminderAutoCloseSeconds), table: "Preferences")
     }
 
     private func intervalLabel(_ seconds: Int) -> String {

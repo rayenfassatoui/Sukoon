@@ -5,6 +5,7 @@ struct MenuBarView: View {
     @Environment(\.sukoonPalette) private var palette
     @Environment(\.sukoonLocalization) private var l10n
     @Bindable var store: AppStore
+    let reminderClock: ReminderClock
     let onOpen: (AppSection) -> Void
     let onPreview: () -> Void
     let onQuit: () -> Void
@@ -12,6 +13,7 @@ struct MenuBarView: View {
     var body: some View {
         let content = store.lastReminder ?? store.previewReminder()
         let automaticComplete = store.settings.mode == .automatic && store.isAutomaticComplete
+        let suspension = ReminderSuspensionStatus(store: store, now: reminderClock.now)
         VStack(spacing: 18) {
             if let content {
                 ScrollView {
@@ -30,6 +32,24 @@ struct MenuBarView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(l10n.text(automaticComplete ? "Automatic Quran complete" : "Choose a surah"))
+            }
+
+            if let suspension {
+                VStack(alignment: .leading, spacing: 3) {
+                    Label(suspension.title(l10n: l10n), systemImage: suspension.isSnoozed ? "moon.zzz" : "moon")
+                        .font(.caption.weight(.medium))
+                    Text(suspension.detail(l10n: l10n))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("reminders.suspension")
+            } else if !store.settings.remindersEnabled {
+                Label(l10n.text("Reminders are paused", table: "Workspace"), systemImage: "bell.slash")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             HStack(spacing: 14) {
@@ -53,6 +73,20 @@ struct MenuBarView: View {
                         Label(l10n.text(store.settings.remindersEnabled ? "Pause reminders" : "Resume reminders"),
                               systemImage: store.settings.remindersEnabled ? "pause" : "play")
                     }
+                    Menu(l10n.text("Snooze reminders"), systemImage: "moon.zzz") {
+                        ForEach([15, 30, 60], id: \.self) { minutes in
+                            Button(l10n.format("For %@ minutes", l10n.number(minutes))) {
+                                store.snooze(for: minutes * 60)
+                            }
+                            .accessibilityIdentifier("reminders.snooze.\(minutes)")
+                        }
+                    }
+                    if let until = store.snoozedUntil, until > reminderClock.now {
+                        Button(l10n.text("Cancel snooze"), systemImage: "play.circle") {
+                            store.cancelSnooze()
+                        }
+                        .accessibilityIdentifier("reminders.cancelSnooze")
+                    }
                     Button(l10n.text("Preview reminder"), systemImage: "sparkle", action: onPreview)
                         .disabled(store.previewReminder() == nil)
                     Divider()
@@ -75,7 +109,29 @@ struct MenuBarView: View {
             .foregroundStyle(.secondary)
         }
         .padding(24)
-        .frame(width: 360, height: 240)
+        .frame(width: 360, height: 288)
         .background(palette.canvas)
+    }
+}
+
+@MainActor
+struct ReminderSuspensionStatus {
+    let resumeDate: Date
+    let isSnoozed: Bool
+
+    init?(store: AppStore, now: Date) {
+        guard store.canScheduleReminder,
+              let resumeDate = store.reminderSuspensionEnd(at: now), resumeDate > now else { return nil }
+        self.resumeDate = resumeDate
+        isSnoozed = store.snoozedUntil.map { $0 > now } ?? false
+    }
+
+    func title(l10n: AppLocalization) -> String {
+        l10n.text(isSnoozed ? "Reminders are snoozed" : "Quiet hours are active")
+    }
+
+    func detail(l10n: AppLocalization) -> String {
+        let date = resumeDate.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(l10n.locale))
+        return l10n.format("Reminders resume %@.", date)
     }
 }

@@ -22,7 +22,6 @@
 "Choose a surah" = "Choose a surah";
 "Quran unavailable" = "Quran unavailable";
 "The Quran" = "The Quran";
-"Search %@ surahs" = "Search %@ surahs";
 "Clear search" = "Clear search";
 "Resume %@ · %@" = "Resume %@ · %@";
 "Open your bookmarked verse" = "Open your bookmarked verse";
@@ -84,3 +83,10 @@
 "Select one surah for its own ordered reminders without changing automatic Quran progress." = "Select one surah for its own ordered reminders without changing automatic Quran progress.";
 "Automatic Quran is complete. Open Journey to review your progress." = "Automatic Quran is complete. Open Journey to review your progress.";
 "No reminder content is available right now." = "No reminder content is available right now.";
+"Search surahs, ayahs, or %@" = "Search surahs, ayahs, or %@";
+"Bookmarks" = "Bookmarks";
+"Remove bookmark %@" = "Remove bookmark %@";
+"Open matching ayah" = "Open matching ayah";
+"Remove bookmark" = "Remove bookmark";
+"Remove this bookmark" = "Remove this bookmark";
+"Save this verse as a bookmark" = "Save this verse as a bookmark";

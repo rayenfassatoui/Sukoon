@@ -8,25 +8,27 @@ struct ReaderView: View {
     let store: AppStore
     @Bindable var navigation: AppNavigation
     @State private var searchText = ""
-    @State private var pendingScrollVerse: Int?
+    @State private var pendingScrollReference: VerseReference?
+    @State private var searchResults: QuranSearchResults?
+    @State private var bookmarksExpanded = false
     @FocusState private var searchFocused: Bool
 
-    private var matchingSurahs: [Surah] {
-        let term = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !term.isEmpty else { return store.library.surahs }
-        var normalizedNumber = ""
-        for character in term {
-            guard let digit = character.wholeNumberValue, (0...9).contains(digit) else {
-                normalizedNumber = ""
-                break
-            }
-            normalizedNumber.unicodeScalars.append(UnicodeScalar(48 + digit)!)
-        }
-        let searchedNumber = Int(normalizedNumber)
-        return store.library.surahs.filter { surah in
-            surah.id == searchedNumber
-                || surah.transliteration.localizedCaseInsensitiveContains(term)
-                || surah.name.localizedCaseInsensitiveContains(term)
+    private var isBrowsing: Bool {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func open(_ reference: VerseReference) {
+        navigation.readerSurahID = reference.surahID
+        pendingScrollReference = reference
+    }
+
+    private func selectFirstSearchResult() {
+        // Direct references and text matches select the exact ayah; names select a chapter.
+        if let first = searchResults?.surahIDs.first {
+            pendingScrollReference = nil
+            navigation.readerSurahID = first
+        } else if let first = searchResults?.verses.first {
+            open(first)
         }
     }
 
@@ -46,7 +48,7 @@ struct ReaderView: View {
                 SurahReader(
                     surah: selectedSurah,
                     store: store,
-                    pendingScrollVerse: $pendingScrollVerse
+                    pendingScrollReference: $pendingScrollReference
                 )
                 .id(selectedSurah.id)
             } else {
@@ -63,12 +65,15 @@ struct ReaderView: View {
                let first = store.library.surahs.first {
                 navigation.readerSurahID = first.id
             }
+            searchResults = store.library.search(searchText)
+        }
+        .onChange(of: searchText) { _, query in
+            searchResults = store.library.search(query)
         }
     }
 
     private var surahIndex: some View {
-        let matches = matchingSurahs
-        return VStack(spacing: 0) {
+        VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
                 Text(l10n.text("The Quran", table: "Workspace"))
                     .font(.system(size: 27, weight: .semibold, design: .rounded))
@@ -78,19 +83,15 @@ struct ReaderView: View {
                         .foregroundStyle(.secondary)
                     TextField(
                         l10n.format(
-                            "Search %@ surahs",
-                            l10n.number(store.library.surahs.count),
+                            "Search surahs, ayahs, or %@",
+                            l10n.reference(VerseReference(surahID: 2, verseID: 255)),
                             table: "Workspace"
                         ),
                         text: $searchText
                     )
                         .textFieldStyle(.plain)
                         .focused($searchFocused)
-                        .onSubmit {
-                            if let first = matches.first {
-                                navigation.readerSurahID = first.id
-                            }
-                        }
+                        .onSubmit { selectFirstSearchResult() }
                     if !searchText.isEmpty {
                         Button {
                             searchText = ""
@@ -110,8 +111,7 @@ struct ReaderView: View {
                    let automaticSurah = store.library.surah(automatic.surahID) {
                     Button {
                         store.startAutomaticReading()
-                        navigation.readerSurahID = automatic.surahID
-                        pendingScrollVerse = automatic.verseID
+                        open(automatic)
                     } label: {
                         Label(
                             l10n.format(
@@ -137,27 +137,48 @@ struct ReaderView: View {
                     .foregroundStyle(palette.success)
                 }
 
-                if let bookmark = store.bookmark,
-                   let bookmarkedSurah = store.library.surah(bookmark.surahID) {
-                    Button {
-                        navigation.readerSurahID = bookmark.surahID
-                        pendingScrollVerse = bookmark.verseID
+                if !store.bookmarks.isEmpty {
+                    DisclosureGroup(isExpanded: $bookmarksExpanded) {
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 8) {
+                                ForEach(store.bookmarks, id: \.self) { bookmark in
+                                    if let chapter = store.library.surah(bookmark.surahID) {
+                                        HStack(spacing: 8) {
+                                            Button { open(bookmark) } label: {
+                                                Label(
+                                                    "\(l10n.surahName(chapter)) · \(l10n.reference(bookmark))",
+                                                    systemImage: "bookmark.fill"
+                                                )
+                                                .font(.caption.weight(.medium))
+                                                .lineLimit(2)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                            }
+                                            .buttonStyle(.plain)
+                                            .foregroundStyle(palette.accent)
+                                            .help(l10n.text("Open your bookmarked verse", table: "Workspace"))
+
+                                            Button { store.removeBookmark(bookmark) } label: {
+                                                Image(systemName: "xmark.circle")
+                                            }
+                                            .buttonStyle(.borderless)
+                                            .accessibilityLabel(
+                                                l10n.format(
+                                                    "Remove bookmark %@",
+                                                    l10n.reference(bookmark),
+                                                    table: "Workspace"
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.top, 8)
+                        }
+                        .frame(maxHeight: 140)
                     } label: {
-                        Label(
-                            l10n.format(
-                                "Resume %@ · %@",
-                                l10n.surahName(bookmarkedSurah),
-                                l10n.quranNumber(bookmark.verseID),
-                                table: "Workspace"
-                            ),
-                            systemImage: "bookmark.fill"
-                        )
-                            .font(.caption.weight(.medium))
-                            .lineLimit(2)
+                        Label(l10n.text("Bookmarks", table: "Workspace"), systemImage: "bookmark")
+                            .font(.caption.weight(.semibold))
                     }
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(palette.accent)
-                    .help(l10n.text("Open your bookmarked verse", table: "Workspace"))
                 }
             }
             .padding(.horizontal, 17)
@@ -166,25 +187,54 @@ struct ReaderView: View {
 
             Divider().opacity(0.55)
 
-            if matches.isEmpty {
+            if !isBrowsing, searchResults?.isEmpty != false {
                 ContentUnavailableView.search(text: searchText)
                     .frame(maxHeight: .infinity)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 4) {
-                        ForEach(matches) { surah in
-                            SurahIndexRow(
-                                surah: surah,
-                                selected: surah.id == navigation.readerSurahID,
-                                readCount: store.readCount(in: surah.id),
-                                action: { navigation.readerSurahID = surah.id }
-                            )
+                        if isBrowsing {
+                            ForEach(store.library.surahs) { surah in
+                                chapterRow(surah)
+                            }
+                        } else if let searchResults {
+                            ForEach(searchResults.surahIDs, id: \.self) { id in
+                                if let surah = store.library.surah(id) {
+                                    chapterRow(surah)
+                                }
+                            }
+                            ForEach(searchResults.verses, id: \.self) { reference in
+                                if let surah = store.library.surah(reference.surahID),
+                                   let verse = surah.verses.first(where: { $0.id == reference.verseID }) {
+                                    AyahSearchRow(
+                                        surah: surah,
+                                        verse: verse,
+                                        isBookmarked: store.isBookmarked(
+                                            surahID: reference.surahID,
+                                            verseID: reference.verseID
+                                        ),
+                                        action: { open(reference) }
+                                    )
+                                }
+                            }
                         }
                     }
                     .padding(8)
                 }
             }
         }
+    }
+
+    private func chapterRow(_ surah: Surah) -> some View {
+        SurahIndexRow(
+            surah: surah,
+            selected: surah.id == navigation.readerSurahID,
+            readCount: store.readCount(in: surah.id),
+            action: {
+                pendingScrollReference = nil
+                navigation.readerSurahID = surah.id
+            }
+        )
     }
 }
 
@@ -262,12 +312,48 @@ private struct SurahIndexRow: View {
     }
 }
 
+private struct AyahSearchRow: View {
+    @Environment(\.sukoonPalette) private var palette
+    @Environment(\.sukoonLocalization) private var l10n
+    let surah: Surah
+    let verse: Verse
+    let isBookmarked: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 6) {
+                    Text(l10n.surahName(surah))
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    Text(l10n.reference(VerseReference(surahID: surah.id, verseID: verse.id)))
+                        .font(.caption.monospacedDigit())
+                    if isBookmarked {
+                        Image(systemName: "bookmark.fill")
+                            .foregroundStyle(palette.gold)
+                            .accessibilityLabel(l10n.text("Bookmarked", table: "Workspace"))
+                    }
+                }
+                ArabicText(verse.text, size: 21)
+                    .lineLimit(3)
+            }
+            .padding(10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(palette.raisedSurface, in: RoundedRectangle(cornerRadius: 9))
+        .help(l10n.text("Open matching ayah", table: "Workspace"))
+    }
+}
+
 private struct SurahReader: View {
     @Environment(\.sukoonPalette) private var palette
     @Environment(\.sukoonLocalization) private var l10n
     let surah: Surah
     let store: AppStore
-    @Binding var pendingScrollVerse: Int?
+    @Binding var pendingScrollReference: VerseReference?
 
 
     var body: some View {
@@ -290,9 +376,9 @@ private struct SurahReader: View {
                             verse: verse,
                             fontSize: store.settings.arabicFontSize,
                             isRead: store.isRead(surahID: surah.id, verseID: verse.id),
-                            isBookmarked: store.bookmark == VerseReference(surahID: surah.id, verseID: verse.id),
+                            isBookmarked: store.isBookmarked(surahID: surah.id, verseID: verse.id),
                             onMarkRead: { store.markRead(surahID: surah.id, verseID: verse.id) },
-                            onBookmark: { store.setBookmark(surahID: surah.id, verseID: verse.id) }
+                            onBookmark: { store.toggleBookmark(surahID: surah.id, verseID: verse.id) }
                         )
                         .id(verse.id)
                     }
@@ -301,12 +387,17 @@ private struct SurahReader: View {
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, 48)
             }
-            .onChange(of: pendingScrollVerse, initial: true) { _, verseID in
-                guard let verseID, surah.verses.contains(where: { $0.id == verseID }) else { return }
+            .task(id: pendingScrollReference) {
+                guard let reference = pendingScrollReference,
+                      reference.surahID == surah.id,
+                      surah.verses.contains(where: { $0.id == reference.verseID }) else { return }
+                // Wait for the newly selected chapter's scroll content to enter the hierarchy.
+                await Task.yield()
+                guard !Task.isCancelled, pendingScrollReference == reference else { return }
                 withAnimation(.easeInOut(duration: 0.35)) {
-                    proxy.scrollTo(verseID, anchor: .top)
+                    proxy.scrollTo(reference.verseID, anchor: .top)
                 }
-                pendingScrollVerse = nil
+                pendingScrollReference = nil
             }
         }
     }
@@ -406,22 +497,21 @@ private struct SurahReader: View {
 
 
             HStack(spacing: 12) {
-                if let bookmark = store.bookmark, bookmark.surahID == surah.id {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.35)) {
-                            proxy.scrollTo(bookmark.verseID, anchor: .top)
+                let bookmarks = store.bookmarks.filter { $0.surahID == surah.id }
+                if !bookmarks.isEmpty {
+                    Menu {
+                        ForEach(bookmarks, id: \.self) { bookmark in
+                            Button(l10n.reference(bookmark)) {
+                                withAnimation(.easeInOut(duration: 0.35)) {
+                                    proxy.scrollTo(bookmark.verseID, anchor: .top)
+                                }
+                            }
                         }
                     } label: {
-                        Label(
-                            l10n.format(
-                                "Bookmark %@",
-                                l10n.quranNumber(bookmark.verseID),
-                                table: "Workspace"
-                            ),
-                            systemImage: "bookmark.fill"
-                        )
+                        Label(l10n.text("Bookmarks", table: "Workspace"), systemImage: "bookmark.fill")
                     }
-                    .buttonStyle(.bordered)
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
                 }
 
                 Spacer()
@@ -483,17 +573,18 @@ private struct VerseRow: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
                 Spacer()
-                if isBookmarked {
-                    Label(l10n.text("Bookmark", table: "Workspace"), systemImage: "bookmark.fill")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(palette.gold)
-                } else {
-                    Button(action: onBookmark) {
-                        Label(l10n.text("Bookmark", table: "Workspace"), systemImage: "bookmark")
-                    }
-                    .buttonStyle(.borderless)
-                    .help(l10n.text("Save this verse as your reading position", table: "Workspace"))
+                Button(action: onBookmark) {
+                    Label(
+                        l10n.text(isBookmarked ? "Remove bookmark" : "Bookmark", table: "Workspace"),
+                        systemImage: isBookmarked ? "bookmark.fill" : "bookmark"
+                    )
                 }
+                .buttonStyle(.borderless)
+                .foregroundStyle(isBookmarked ? palette.gold : palette.accent)
+                .help(l10n.text(
+                    isBookmarked ? "Remove this bookmark" : "Save this verse as a bookmark",
+                    table: "Workspace"
+                ))
 
                 if isRead {
                     Label(l10n.text("Marked", table: "Workspace"), systemImage: "checkmark.circle.fill")

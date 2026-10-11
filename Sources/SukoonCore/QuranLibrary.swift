@@ -1,9 +1,18 @@
 import Foundation
 
+/// Search matches retain only canonical identifiers; display text comes from the library.
+public struct QuranSearchResults: Sendable, Equatable {
+    public let surahIDs: [Int]
+    public let verses: [VerseReference]
+
+    public var isEmpty: Bool { surahIDs.isEmpty && verses.isEmpty }
+}
+
 public struct QuranLibrary: Sendable {
     public let surahs: [Surah]
     private let indexByID: [Int: Int]
     private let storedVerseCount: Int
+    private let searchIndex: [SurahSearchIndex]
 
     public var verseCount: Int {
         storedVerseCount
@@ -21,6 +30,17 @@ public struct QuranLibrary: Sendable {
         }
         indexByID = index
         storedVerseCount = verseCount
+        // Construct once, never while rendering or on each search keystroke.
+        searchIndex = surahs.map { surah in
+            SurahSearchIndex(
+                id: surah.id,
+                name: normalizedQuranSearchText(surah.name),
+                transliteration: normalizedQuranSearchText(surah.transliteration),
+                verses: surah.verses.map {
+                    VerseSearchIndex(id: $0.id, text: normalizedQuranSearchText($0.text))
+                }
+            )
+        }
     }
 
     public static func load() throws -> QuranLibrary {
@@ -52,6 +72,48 @@ public struct QuranLibrary: Sendable {
         return surahs[index]
     }
 
+    /// Searches chapter names/numbers and original Arabic ayah text in canonical order.
+    /// A colon denotes a direct reference; invalid references never fall back to text search.
+    public func search(_ query: String) -> QuranSearchResults {
+        let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let empty = QuranSearchResults(surahIDs: [], verses: [])
+        guard !term.isEmpty else { return empty }
+
+        if term.contains(":") {
+            let parts = term.split(separator: ":", omittingEmptySubsequences: false)
+            guard parts.count == 2,
+                  let surahID = quranSearchNumber(String(parts[0])),
+                  let verseID = quranSearchNumber(String(parts[1])),
+                  surahID > 0, verseID > 0,
+                  let surah = surah(surahID),
+                  surah.verses.contains(where: { $0.id == verseID }) else {
+                return empty
+            }
+            return QuranSearchResults(
+                surahIDs: [],
+                verses: [VerseReference(surahID: surahID, verseID: verseID)]
+            )
+        }
+
+        if let number = quranSearchNumber(term) {
+            return QuranSearchResults(surahIDs: surah(number) == nil ? [] : [number], verses: [])
+        }
+
+        let normalized = normalizedQuranSearchText(term)
+        guard !normalized.isEmpty else { return empty }
+        var surahIDs: [Int] = []
+        var verses: [VerseReference] = []
+        for chapter in searchIndex {
+            if chapter.name.contains(normalized) || chapter.transliteration.contains(normalized) {
+                surahIDs.append(chapter.id)
+            }
+            for verse in chapter.verses where verse.text.contains(normalized) {
+                verses.append(VerseReference(surahID: chapter.id, verseID: verse.id))
+            }
+        }
+        return QuranSearchResults(surahIDs: surahIDs, verses: verses)
+    }
+
     func verse(atGlobalOffset offset: Int) -> (surah: Surah, verse: Verse)? {
         guard offset >= 0 else { return nil }
         var remaining = offset
@@ -63,6 +125,56 @@ public struct QuranLibrary: Sendable {
         }
         return nil
     }
+}
+
+private struct SurahSearchIndex: Sendable {
+    let id: Int
+    let name: String
+    let transliteration: String
+    let verses: [VerseSearchIndex]
+}
+
+private struct VerseSearchIndex: Sendable {
+    let id: Int
+    let text: String
+}
+
+private func quranSearchNumber(_ value: String) -> Int? {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
+    var number = ""
+    for character in trimmed {
+        guard let digit = character.wholeNumberValue, (0...9).contains(digit) else { return nil }
+        number.unicodeScalars.append(UnicodeScalar(48 + digit)!)
+    }
+    return Int(number)
+}
+
+private func normalizedQuranSearchText(_ value: String) -> String {
+    var result = ""
+    var pendingSpace = false
+    for scalar in value.lowercased().decomposedStringWithCanonicalMapping.unicodeScalars {
+        switch scalar.properties.generalCategory {
+        case .nonspacingMark, .spacingMark, .enclosingMark:
+            continue
+        default:
+            break
+        }
+        // Tatweel and Quranic recitation annotations are not part of ordinary spelling.
+        if scalar.value == 0x0640 || (0x06D6...0x06ED).contains(scalar.value) {
+            continue
+        }
+        if CharacterSet.whitespacesAndNewlines.contains(scalar) {
+            pendingSpace = !result.isEmpty
+            continue
+        }
+        if pendingSpace {
+            result.append(" ")
+            pendingSpace = false
+        }
+        result.unicodeScalars.append(scalar.value == 0x0671 ? UnicodeScalar(0x0627)! : scalar)
+    }
+    return result
 }
 
 public enum QuranLibraryError: LocalizedError, Equatable {

@@ -22,7 +22,6 @@
 "Choose a surah" = "اختر سورة";
 "Quran unavailable" = "القرآن غير متاح";
 "The Quran" = "القرآن الكريم";
-"Search %@ surahs" = "ابحث في %@ سورة";
 "Clear search" = "مسح البحث";
 "Resume %@ · %@" = "استئناف %@ · %@";
 "Open your bookmarked verse" = "فتح الآية المحفوظة";
@@ -84,3 +83,10 @@
 "Select one surah for its own ordered reminders without changing automatic Quran progress." = "اختر سورة واحدة لتذكيراتها المرتبة من دون تغيير تقدّم الختمة التلقائية.";
 "Automatic Quran is complete. Open Journey to review your progress." = "اكتملت الختمة التلقائية. افتح مسيرة القراءة لمراجعة تقدّمك.";
 "No reminder content is available right now." = "لا يتوفر محتوى تذكير الآن.";
+"Search surahs, ayahs, or %@" = "ابحث عن سورة أو آية أو %@";
+"Bookmarks" = "العلامات المرجعية";
+"Remove bookmark %@" = "إزالة العلامة المرجعية %@";
+"Open matching ayah" = "فتح الآية المطابقة";
+"Remove bookmark" = "إزالة العلامة المرجعية";
+"Remove this bookmark" = "إزالة هذه العلامة المرجعية";
+"Save this verse as a bookmark" = "حفظ هذه الآية كعلامة مرجعية";

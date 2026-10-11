@@ -114,6 +114,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var accent: AccentTheme
     public var intervalSeconds: Int
     public var menuBarAutoCloseSeconds: Int
+    public var reminderAutoCloseSeconds: Int
+    public var quietHoursEnabled: Bool
+    public var quietHoursStartMinute: Int
+    public var quietHoursEndMinute: Int
     public var mode: ReminderMode
     public var remindersEnabled: Bool
     public var arabicFontSize: Double
@@ -126,6 +130,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
         accent: AccentTheme = .jade,
         intervalSeconds: Int = 120,
         menuBarAutoCloseSeconds: Int = 10,
+        reminderAutoCloseSeconds: Int = 10,
+        quietHoursEnabled: Bool = false,
+        quietHoursStartMinute: Int = 1380,
+        quietHoursEndMinute: Int = 480,
         mode: ReminderMode = .mixed,
         remindersEnabled: Bool = true,
         arabicFontSize: Double = 32,
@@ -137,6 +145,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.accent = accent
         self.intervalSeconds = intervalSeconds
         self.menuBarAutoCloseSeconds = menuBarAutoCloseSeconds
+        self.reminderAutoCloseSeconds = reminderAutoCloseSeconds
+        self.quietHoursEnabled = quietHoursEnabled
+        self.quietHoursStartMinute = quietHoursStartMinute
+        self.quietHoursEndMinute = quietHoursEndMinute
         self.mode = mode
         self.remindersEnabled = remindersEnabled
         self.arabicFontSize = arabicFontSize
@@ -148,6 +160,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case theme, accent, intervalSeconds, menuBarAutoCloseSeconds, mode, remindersEnabled
         case arabicFontSize, autoAdvance, language, quranNumberStyle
+        case reminderAutoCloseSeconds, quietHoursEnabled, quietHoursStartMinute, quietHoursEndMinute
     }
 
     private enum LegacyCodingKeys: String, CodingKey {
@@ -165,6 +178,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
             intervalSeconds = (try legacy.decodeIfPresent(Int.self, forKey: .intervalMinutes) ?? 2) * 60
         }
         menuBarAutoCloseSeconds = try values.decodeIfPresent(Int.self, forKey: .menuBarAutoCloseSeconds) ?? 10
+        reminderAutoCloseSeconds = try values.decodeIfPresent(Int.self, forKey: .reminderAutoCloseSeconds) ?? 10
+        quietHoursEnabled = try values.decodeIfPresent(Bool.self, forKey: .quietHoursEnabled) ?? false
+        quietHoursStartMinute = try values.decodeIfPresent(Int.self, forKey: .quietHoursStartMinute) ?? 1380
+        quietHoursEndMinute = try values.decodeIfPresent(Int.self, forKey: .quietHoursEndMinute) ?? 480
         mode = try values.decodeIfPresent(ReminderMode.self, forKey: .mode) ?? .mixed
         remindersEnabled = try values.decodeIfPresent(Bool.self, forKey: .remindersEnabled) ?? true
         arabicFontSize = try values.decodeIfPresent(Double.self, forKey: .arabicFontSize) ?? 32
@@ -172,6 +189,30 @@ public struct AppSettings: Codable, Equatable, Sendable {
         language = try values.decodeIfPresent(AppLanguage.self, forKey: .language) ?? .english
         quranNumberStyle = try values.decodeIfPresent(QuranNumberStyle.self, forKey: .quranNumberStyle)
             ?? (language == .arabic ? .arabic : .western)
+    }
+
+    func quietHoursEnd(containing date: Date, calendar: Calendar) -> Date? {
+        guard quietHoursEnabled,
+              (0..<1440).contains(quietHoursStartMinute),
+              (0..<1440).contains(quietHoursEndMinute),
+              quietHoursStartMinute != quietHoursEndMinute else { return nil }
+        let components = calendar.dateComponents([.hour, .minute], from: date)
+        let minute = (components.hour ?? 0) * 60 + (components.minute ?? 0)
+        let isQuiet = quietHoursStartMinute < quietHoursEndMinute
+            ? minute >= quietHoursStartMinute && minute < quietHoursEndMinute
+            : minute >= quietHoursStartMinute || minute < quietHoursEndMinute
+        guard isQuiet else { return nil }
+        let matching = DateComponents(hour: quietHoursEndMinute / 60, minute: quietHoursEndMinute % 60, second: 0)
+        guard let firstEnd = calendar.nextDate(
+            after: date, matching: matching, matchingPolicy: .nextTime, repeatedTimePolicy: .first
+        ) else { return nil }
+        if minute < quietHoursEndMinute, !calendar.isDate(firstEnd, inSameDayAs: date),
+           let repeatedEnd = calendar.nextDate(
+               after: date, matching: matching, matchingPolicy: .nextTime, repeatedTimePolicy: .last
+           ) {
+            return min(firstEnd, repeatedEnd)
+        }
+        return firstEnd
     }
 }
 

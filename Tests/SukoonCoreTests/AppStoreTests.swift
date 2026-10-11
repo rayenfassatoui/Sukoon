@@ -164,7 +164,7 @@ final class AppStoreTests: XCTestCase {
             )
             store.startSurah(2)
             store.settings.autoAdvance = false
-            store.setBookmark(surahID: 1, verseID: 2)
+            store.toggleBookmark(surahID: 1, verseID: 2)
             store.markRead(surahID: 1, verseID: 1)
             store.markRead(surahID: 1, verseID: 1)
         }
@@ -180,7 +180,7 @@ final class AppStoreTests: XCTestCase {
         XCTAssertFalse(restored.settings.autoAdvance)
         XCTAssertEqual(restored.settings.arabicFontSize, 41)
         XCTAssertEqual(restored.settings.quranNumberStyle, .arabic)
-        XCTAssertEqual(restored.bookmark, VerseReference(surahID: 1, verseID: 2))
+        XCTAssertEqual(restored.bookmarks, [VerseReference(surahID: 1, verseID: 2)])
         XCTAssertEqual(restored.readVerseCount, 1)
         XCTAssertTrue(restored.isRead(surahID: 1, verseID: 1))
         XCTAssertNil(restored.lastReminder)
@@ -224,7 +224,7 @@ final class AppStoreTests: XCTestCase {
         let restored = AppStore(library: library, defaults: defaults)
         XCTAssertEqual(restored.settings, expectedSettings)
         XCTAssertEqual(restored.selectedSurahID, 1)
-        XCTAssertEqual(restored.bookmark, VerseReference(surahID: 1, verseID: 2))
+        XCTAssertEqual(restored.bookmarks, [VerseReference(surahID: 1, verseID: 2)])
         XCTAssertEqual(restored.readVerseCount, 1)
         XCTAssertTrue(restored.isRead(surahID: 1, verseID: 1))
         XCTAssertEqual(restored.nextUnreadVerse(in: 1)?.id, 2)
@@ -259,7 +259,7 @@ final class AppStoreTests: XCTestCase {
         XCTAssertEqual(restored.settings.menuBarAutoCloseSeconds, 20)
         XCTAssertEqual(restored.selectedSurahID, 1)
         XCTAssertEqual(restored.automaticVerseOffset, 1)
-        XCTAssertEqual(restored.bookmark, VerseReference(surahID: 1, verseID: 2))
+        XCTAssertEqual(restored.bookmarks, [VerseReference(surahID: 1, verseID: 2)])
         XCTAssertTrue(restored.isRead(surahID: 1, verseID: 1))
 
         restored.settings.quranNumberStyle = .western
@@ -287,7 +287,7 @@ final class AppStoreTests: XCTestCase {
         store.settings.theme = .light
         store.settings.accent = .rose
         store.settings.intervalSeconds = 600
-        store.setBookmark(surahID: 1, verseID: 1)
+        store.toggleBookmark(surahID: 1, verseID: 1)
         store.markRead(surahID: 1, verseID: 1)
         _ = store.nextReminder()
 
@@ -295,7 +295,7 @@ final class AppStoreTests: XCTestCase {
 
         XCTAssertEqual(store.readVerseCount, 0)
         XCTAssertNil(store.selectedSurahID)
-        XCTAssertNil(store.bookmark)
+        XCTAssertEqual(store.bookmarks, [])
         XCTAssertNil(store.lastReminder)
         XCTAssertNil(store.celebration)
         XCTAssertEqual(store.automaticVerseOffset, 0)
@@ -310,7 +310,7 @@ final class AppStoreTests: XCTestCase {
         let restored = AppStore(library: library, defaults: defaults)
         XCTAssertEqual(restored.readVerseCount, 0)
         XCTAssertNil(restored.selectedSurahID)
-        XCTAssertNil(restored.bookmark)
+        XCTAssertEqual(restored.bookmarks, [])
         XCTAssertEqual(restored.settings.mode, .surah)
         XCTAssertEqual(restored.settings.intervalSeconds, 600)
         XCTAssertEqual(restored.settings.menuBarAutoCloseSeconds, 20)
@@ -469,19 +469,19 @@ final class AppStoreTests: XCTestCase {
         let manualDelivery = try XCTUnwrap(store.nextReminder())
         XCTAssertEqual(manualDelivery.kind, .surah)
         store.acknowledge(manualDelivery)
-        store.setBookmark(surahID: 2, verseID: 1)
+        store.toggleBookmark(surahID: 2, verseID: 1)
         XCTAssertEqual(store.automaticVerseOffset, 1)
 
         store.startAutomaticReading()
         XCTAssertEqual(store.selectedSurahID, 2)
-        XCTAssertEqual(store.bookmark, VerseReference(surahID: 2, verseID: 1))
+        XCTAssertEqual(store.bookmarks, [VerseReference(surahID: 2, verseID: 1)])
         XCTAssertEqual(store.automaticNextReference, VerseReference(surahID: 1, verseID: 2))
 
         let restored = AppStore(library: library, defaults: defaults)
         XCTAssertEqual(restored.settings.mode, .automatic)
         XCTAssertTrue(restored.settings.remindersEnabled)
         XCTAssertEqual(restored.selectedSurahID, 2)
-        XCTAssertEqual(restored.bookmark, VerseReference(surahID: 2, verseID: 1))
+        XCTAssertEqual(restored.bookmarks, [VerseReference(surahID: 2, verseID: 1)])
         XCTAssertEqual(restored.automaticVerseOffset, 1)
         XCTAssertEqual(restored.automaticNextReference, VerseReference(surahID: 1, verseID: 2))
     }
@@ -507,6 +507,161 @@ final class AppStoreTests: XCTestCase {
         let beforeStart = AppStore(library: library, defaults: defaults)
         XCTAssertEqual(beforeStart.automaticVerseOffset, 0)
         XCTAssertEqual(beforeStart.automaticNextReference, VerseReference(surahID: 1, verseID: 1))
+    }
+
+    @MainActor
+    func testQuietHoursRespectOvernightBoundariesAndDeferredDelivery() throws {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AppStore(library: twoSurahLibrary(), defaults: defaults)
+        store.settings.quietHoursEnabled = true
+        store.settings.intervalSeconds = 120
+        let calendar = testCalendar()
+        XCTAssertTrue(store.canDeliverReminder(at: testDate("2026-06-01T22:59:00Z"), calendar: calendar))
+        XCTAssertFalse(store.canDeliverReminder(at: testDate("2026-06-01T23:00:00Z"), calendar: calendar))
+        XCTAssertFalse(store.canDeliverReminder(at: testDate("2026-06-02T07:59:00Z"), calendar: calendar))
+        XCTAssertTrue(store.canDeliverReminder(at: testDate("2026-06-02T08:00:00Z"), calendar: calendar))
+        XCTAssertEqual(store.nextReminderDate(after: testDate("2026-06-01T22:59:00Z"), calendar: calendar),
+                       testDate("2026-06-02T08:00:00Z"))
+        XCTAssertEqual(store.readVerseCount, 0)
+        XCTAssertEqual(store.automaticVerseOffset, 0)
+        store.settings.quietHoursStartMinute = 12 * 60
+        store.settings.quietHoursEndMinute = 13 * 60
+        XCTAssertFalse(store.canDeliverReminder(at: testDate("2026-06-01T12:30:00Z"), calendar: calendar))
+        XCTAssertTrue(store.canDeliverReminder(at: testDate("2026-06-01T13:00:00Z"), calendar: calendar))
+        store.settings.quietHoursEndMinute = store.settings.quietHoursStartMinute
+        XCTAssertTrue(store.canDeliverReminder(at: testDate("2026-06-01T12:30:00Z"), calendar: calendar))
+        store.settings.remindersEnabled = false
+        XCTAssertNil(store.nextReminderDate(after: testDate("2026-06-01T12:30:00Z"), calendar: calendar))
+    }
+
+    @MainActor
+    func testSnoozePersistsOverlapsQuietHoursAndCanBeCancelled() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let library = twoSurahLibrary()
+        let store = AppStore(library: library, defaults: defaults)
+        let calendar = testCalendar()
+        let now = testDate("2026-06-01T20:30:00Z")
+        store.settings.quietHoursEnabled = true
+        store.settings.quietHoursStartMinute = 21 * 60
+        store.settings.quietHoursEndMinute = 22 * 60
+        store.snooze(for: 3600, now: now)
+        XCTAssertFalse(store.canDeliverReminder(at: now, calendar: calendar))
+        XCTAssertEqual(store.reminderSuspensionEnd(at: now, calendar: calendar), testDate("2026-06-01T22:00:00Z"))
+        XCTAssertEqual(store.nextReminderDate(after: now, calendar: calendar), testDate("2026-06-01T22:00:00Z"))
+        let restored = AppStore(library: library, defaults: defaults)
+        XCTAssertEqual(restored.snoozedUntil, testDate("2026-06-01T21:30:00Z"))
+        XCTAssertTrue(restored.canDeliverReminder(at: testDate("2026-06-01T22:00:00Z"), calendar: calendar))
+        restored.cancelSnooze()
+        XCTAssertTrue(restored.canDeliverReminder(at: now, calendar: calendar))
+        XCTAssertEqual(restored.nextReminderDate(after: now, calendar: calendar), now.addingTimeInterval(120))
+        XCTAssertNil(AppStore(library: library, defaults: defaults).snoozedUntil)
+    }
+
+    @MainActor
+    func testQuietHourEndHandlesSpringGapAndBothRepeatedHours() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AppStore(library: twoSurahLibrary(), defaults: defaults)
+        let calendar = testCalendar("America/Los_Angeles")
+        store.settings.quietHoursEnabled = true
+        store.settings.quietHoursStartMinute = 60
+        store.settings.quietHoursEndMinute = 150
+        XCTAssertEqual(
+            store.reminderSuspensionEnd(at: testDate("2026-03-08T09:30:00Z"), calendar: calendar),
+            testDate("2026-03-08T10:00:00Z")
+        )
+        store.settings.quietHoursStartMinute = 0
+        store.settings.quietHoursEndMinute = 105
+        XCTAssertEqual(
+            store.reminderSuspensionEnd(at: testDate("2026-11-01T08:30:00Z"), calendar: calendar),
+            testDate("2026-11-01T08:45:00Z")
+        )
+        XCTAssertEqual(
+            store.reminderSuspensionEnd(at: testDate("2026-11-01T09:30:00Z"), calendar: calendar),
+            testDate("2026-11-01T09:45:00Z")
+        )
+    }
+
+    @MainActor
+    func testMultipleBookmarksToggleIndependentlyAndPersistOrder() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let library = twoSurahLibrary()
+        let store = AppStore(library: library, defaults: defaults)
+        store.toggleBookmark(surahID: 1, verseID: 2)
+        store.toggleBookmark(surahID: 2, verseID: 1)
+        XCTAssertEqual(store.bookmarks, [VerseReference(surahID: 2, verseID: 1), VerseReference(surahID: 1, verseID: 2)])
+        store.toggleBookmark(surahID: 1, verseID: 2)
+        XCTAssertTrue(store.isBookmarked(surahID: 2, verseID: 1))
+        XCTAssertFalse(store.isBookmarked(surahID: 1, verseID: 2))
+        store.toggleBookmark(surahID: 99, verseID: 1)
+        XCTAssertEqual(AppStore(library: library, defaults: defaults).bookmarks, [VerseReference(surahID: 2, verseID: 1)])
+        store.removeBookmark(VerseReference(surahID: 2, verseID: 1))
+        XCTAssertEqual(AppStore(library: library, defaults: defaults).bookmarks, [])
+    }
+
+    @MainActor
+    func testReadingBackupRestoresPlansMarksAndBookmarksWithoutChangingPreferences() throws {
+        let (sourceDefaults, sourceSuite) = makeDefaults()
+        let (targetDefaults, targetSuite) = makeDefaults()
+        defer {
+            sourceDefaults.removePersistentDomain(forName: sourceSuite)
+            targetDefaults.removePersistentDomain(forName: targetSuite)
+        }
+        let library = twoSurahLibrary()
+        let source = AppStore(library: library, defaults: sourceDefaults)
+        source.startAutomaticReading()
+        source.acknowledge(try XCTUnwrap(source.nextReminder()))
+        source.startSurah(2)
+        source.toggleBookmark(surahID: 1, verseID: 2)
+        source.toggleBookmark(surahID: 2, verseID: 1)
+        let target = AppStore(library: library, defaults: targetDefaults)
+        target.settings.theme = .dark
+        target.settings.language = .arabic
+        target.settings.reminderAutoCloseSeconds = 30
+        target.settings.quietHoursEnabled = true
+        target.snooze(for: 1800, now: testDate("2026-06-01T12:00:00Z"))
+        let previousSettings = target.settings
+        let previousSnooze = target.snoozedUntil
+        target.markRead(surahID: 1, verseID: 2)
+        try target.importReadingBackup(source.exportReadingBackup())
+        XCTAssertTrue(target.isRead(surahID: 1, verseID: 1))
+        XCTAssertFalse(target.isRead(surahID: 1, verseID: 2))
+        XCTAssertEqual(target.readVerseCount, 1)
+        XCTAssertEqual(target.automaticVerseOffset, 1)
+        XCTAssertEqual(target.selectedSurahID, 2)
+        XCTAssertEqual(target.bookmarks, source.bookmarks)
+        XCTAssertEqual(target.settings, previousSettings)
+        XCTAssertEqual(target.snoozedUntil, previousSnooze)
+        XCTAssertNil(target.lastReminder)
+        let restored = AppStore(library: library, defaults: targetDefaults)
+        XCTAssertEqual(restored.automaticNextReference, VerseReference(surahID: 1, verseID: 2))
+        XCTAssertEqual(restored.bookmarks, source.bookmarks)
+        XCTAssertEqual(restored.settings, previousSettings)
+    }
+
+    @MainActor
+    func testInvalidBackupNeverMutatesExistingReadingState() throws {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AppStore(library: twoSurahLibrary(), defaults: defaults)
+        store.markRead(surahID: 1, verseID: 1)
+        store.toggleBookmark(surahID: 2, verseID: 1)
+        let before = try store.exportReadingBackup()
+        let invalidBackups = [
+            #"{"formatVersion":2,"readVerses":[],"automaticVerseOffset":0,"bookmarks":[]}"#,
+            #"{"formatVersion":1,"readVerses":[{"surahID":99,"verseID":1}],"automaticVerseOffset":0,"bookmarks":[]}"#,
+            #"{"formatVersion":1,"readVerses":[],"automaticVerseOffset":4,"bookmarks":[]}"#,
+            #"{"formatVersion":1,"readVerses":[],"automaticVerseOffset":0,"selectedSurahID":99,"bookmarks":[]}"#,
+            #"{"formatVersion":1,"readVerses":[],"automaticVerseOffset":0,"bookmarks":[{"surahID":1,"verseID":99}]}"#,
+            "{broken JSON"
+        ]
+        for invalid in invalidBackups {
+            XCTAssertThrowsError(try store.importReadingBackup(Data(invalid.utf8)))
+            XCTAssertEqual(try store.exportReadingBackup(), before)
+        }
     }
 }
 
@@ -539,4 +694,14 @@ private func makeDefaults() -> (UserDefaults, String) {
     let defaults = UserDefaults(suiteName: suite)!
     defaults.removePersistentDomain(forName: suite)
     return (defaults, suite)
+}
+
+private func testCalendar(_ zone: String = "UTC") -> Calendar {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: zone)!
+    return calendar
+}
+
+private func testDate(_ value: String) -> Date {
+    ISO8601DateFormatter().date(from: value)!
 }
