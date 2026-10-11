@@ -68,10 +68,19 @@ The menu bar stays minimal: Arabic text, a surah reference, and access to the re
 
 ### Requirements
 
-- **macOS 26 or later.**
-- A full **Xcode** installation with **Swift 6.2 or later** and a compatible macOS SDK. Command Line Tools alone are not sufficient for this project.
+- **Prebuilt app:** an **Apple Silicon Mac (M1 or later)** running **macOS 26 or later**. The release ZIP does not support Intel Macs.
+- **Building from source:** macOS 26 or later, a full **Xcode** installation with **Swift 6.2 or later**, and a compatible macOS SDK. Command Line Tools alone are not sufficient for building this project.
 
 Verified configuration: **macOS 27, Apple Silicon, Xcode 27, Swift 6.4**. Other configurations have not been verified.
+
+### Download and install
+
+1. Open the [latest GitHub release](https://github.com/rayenfassatoui/Sukoon/releases/latest) and download the **macOS Apple Silicon (`arm64`) app ZIP** under **Assets**, not the automatically generated source-code archives.
+2. Unzip it and move **`Sukoon.app`** into **`/Applications`**.
+3. Open Sukoon. Its icon appears in the menu bar; **Xcode is not required** to run the downloaded app.
+
+> [!IMPORTANT]
+> The downloadable app is **ad-hoc signed and not notarized by Apple**. If macOS blocks its first launch as an unidentified developer, and you trust this repository and downloaded its release asset, open **System Settings → Privacy & Security → Open Anyway**, then confirm **Open**. Do not disable Gatekeeper globally.
 
 ### Build and open
 
@@ -85,9 +94,6 @@ open build/Sukoon.app
 The bundler builds a release executable, packages the offline Quran, license notices, English and Arabic resources, and app icon, then ad-hoc signs the app. It finds a full Xcode installation without changing your system-wide `xcode-select` setting. Set `DEVELOPER_DIR` if you need to select a specific Xcode installation.
 
 You can move **`build/Sukoon.app`** into **`/Applications`**. The bundle is self-contained; it does not need the source checkout to run.
-
-> [!NOTE]
-> This is a source-build workflow, not a notarized public release. The bundler's ad-hoc signature is for local use; public distribution requires appropriate signing and notarization.
 
 ### First use
 
