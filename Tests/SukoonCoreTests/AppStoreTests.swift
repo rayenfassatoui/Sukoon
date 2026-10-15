@@ -159,6 +159,9 @@ final class AppStoreTests: XCTestCase {
                 mode: .ayah,
                 remindersEnabled: false,
                 arabicFontSize: 41,
+                quranFontName: "AmiriQuran-Regular",
+                reminderPanelWidth: 424,
+                reminderPanelHeight: 218,
                 autoAdvance: false,
                 quranNumberStyle: .arabic
             )
@@ -179,6 +182,9 @@ final class AppStoreTests: XCTestCase {
         XCTAssertTrue(restored.settings.remindersEnabled)
         XCTAssertFalse(restored.settings.autoAdvance)
         XCTAssertEqual(restored.settings.arabicFontSize, 41)
+        XCTAssertEqual(restored.settings.quranFontName, "AmiriQuran-Regular")
+        XCTAssertEqual(restored.settings.reminderPanelWidth, 424)
+        XCTAssertEqual(restored.settings.reminderPanelHeight, 218)
         XCTAssertEqual(restored.settings.quranNumberStyle, .arabic)
         XCTAssertEqual(restored.bookmarks, [VerseReference(surahID: 1, verseID: 2)])
         XCTAssertEqual(restored.readVerseCount, 1)
@@ -328,8 +334,14 @@ final class AppStoreTests: XCTestCase {
         XCTAssertFalse(store.canScheduleReminder)
         XCTAssertNil(store.nextReminder())
         store.startSurah(2)
-        XCTAssertTrue(store.canScheduleReminder)
         store.markRead(surahID: 2, verseID: 1)
+        XCTAssertTrue(store.canScheduleReminder)
+        XCTAssertEqual(store.selectedSurahID, 1, "Chosen reading wraps to the first unread surah")
+        XCTAssertTrue(store.canScheduleReminder)
+        XCTAssertEqual(store.nextReminder()?.reference, VerseReference(surahID: 1, verseID: 1))
+        store.markRead(surahID: 1, verseID: 1)
+        store.markRead(surahID: 1, verseID: 2)
+        XCTAssertEqual(store.celebration, .khatm)
         XCTAssertFalse(store.canScheduleReminder)
         XCTAssertNil(store.nextReminder())
 
@@ -404,6 +416,87 @@ final class AppStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testChosenSurahCompletionAdvancesUnreadPlanPersistsWithoutTouchingAutomaticState() throws {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let library = fourSurahLibrary()
+        let store = AppStore(library: library, defaults: defaults)
+        store.settings.theme = .dark
+        store.settings.accent = .gold
+
+        store.startAutomaticReading()
+        let automaticDelivery = try XCTUnwrap(store.nextReminder())
+        store.acknowledge(automaticDelivery)
+        XCTAssertEqual(store.automaticVerseOffset, 1)
+        store.toggleBookmark(surahID: 4, verseID: 1)
+
+        store.startSurah(2)
+        XCTAssertEqual(store.selectedSurahID, 2)
+        let preview = try XCTUnwrap(store.previewReminder())
+        store.acknowledge(preview)
+        XCTAssertEqual(store.readVerseCount, 1, "A preview cannot advance the chosen plan")
+
+        let staleDelivery = try XCTUnwrap(store.nextReminder())
+        let currentDelivery = try XCTUnwrap(store.nextReminder())
+        XCTAssertEqual(staleDelivery.reference, currentDelivery.reference)
+        XCTAssertNotEqual(staleDelivery.id, currentDelivery.id)
+        let activePreview = try XCTUnwrap(store.previewReminder())
+        XCTAssertNotEqual(activePreview.id, currentDelivery.id)
+        store.acknowledge(activePreview)
+        XCTAssertEqual(store.readVerseCount, 1, "A chosen-plan preview cannot acknowledge the active delivery")
+        store.acknowledge(staleDelivery)
+        XCTAssertEqual(store.readVerseCount, 1, "A stale chosen-plan delivery is inert")
+        XCTAssertEqual(store.selectedSurahID, 2)
+
+        store.acknowledge(currentDelivery)
+        let finalDelivery = try XCTUnwrap(store.nextReminder())
+        XCTAssertEqual(finalDelivery.reference, VerseReference(surahID: 2, verseID: 2))
+        store.acknowledge(finalDelivery)
+        XCTAssertEqual(store.selectedSurahID, 3)
+        XCTAssertEqual(store.celebration, .surah(2))
+        XCTAssertEqual(store.automaticVerseOffset, 1, "Chosen completion cannot move the automatic cursor")
+
+        store.celebration = nil
+        store.acknowledge(finalDelivery)
+        XCTAssertNil(store.celebration, "A completed chosen surah emits success only once")
+        XCTAssertEqual(store.selectedSurahID, 3)
+
+        let restored = AppStore(library: library, defaults: defaults)
+        XCTAssertEqual(restored.settings.mode, .surah)
+        XCTAssertEqual(restored.settings.theme, .dark)
+        XCTAssertEqual(restored.settings.accent, .gold)
+        XCTAssertEqual(restored.selectedSurahID, 3)
+        XCTAssertEqual(restored.automaticVerseOffset, 1)
+        XCTAssertEqual(restored.automaticNextReference, VerseReference(surahID: 1, verseID: 2))
+        XCTAssertEqual(restored.bookmarks, [VerseReference(surahID: 4, verseID: 1)])
+        XCTAssertNil(restored.celebration, "Transient success is not replayed after relaunch")
+
+        let thirdDelivery = try XCTUnwrap(restored.nextReminder())
+        restored.acknowledge(thirdDelivery)
+        XCTAssertEqual(restored.selectedSurahID, 4)
+        XCTAssertEqual(restored.celebration, .surah(3))
+        restored.celebration = nil
+
+        let fourthDelivery = try XCTUnwrap(restored.nextReminder())
+        restored.acknowledge(fourthDelivery)
+        XCTAssertEqual(restored.selectedSurahID, 1, "Chosen reading wraps to the first unread chapter")
+        XCTAssertEqual(restored.celebration, .surah(4))
+        restored.celebration = nil
+
+        let lastDelivery = try XCTUnwrap(restored.nextReminder())
+        XCTAssertEqual(lastDelivery.reference, VerseReference(surahID: 1, verseID: 2))
+        restored.acknowledge(lastDelivery)
+        XCTAssertEqual(restored.celebration, .khatm, "All-read completion remains the khatm boundary")
+        XCTAssertEqual(restored.selectedSurahID, 1)
+        XCTAssertEqual(restored.automaticVerseOffset, 1)
+
+        restored.celebration = nil
+        restored.acknowledge(lastDelivery)
+        XCTAssertNil(restored.celebration, "The terminal chosen delivery cannot complete twice")
+        XCTAssertNil(restored.nextReminder())
+    }
+
+    @MainActor
     func testAutomaticTerminalCompletionDoesNotWrapAndEmitsKhatmOnce() throws {
         let (defaults, suite) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -473,14 +566,14 @@ final class AppStoreTests: XCTestCase {
         XCTAssertEqual(store.automaticVerseOffset, 1)
 
         store.startAutomaticReading()
-        XCTAssertEqual(store.selectedSurahID, 2)
+        XCTAssertEqual(store.selectedSurahID, 1, "Completing the selected surah advances the chosen plan")
         XCTAssertEqual(store.bookmarks, [VerseReference(surahID: 2, verseID: 1)])
         XCTAssertEqual(store.automaticNextReference, VerseReference(surahID: 1, verseID: 2))
 
         let restored = AppStore(library: library, defaults: defaults)
         XCTAssertEqual(restored.settings.mode, .automatic)
         XCTAssertTrue(restored.settings.remindersEnabled)
-        XCTAssertEqual(restored.selectedSurahID, 2)
+        XCTAssertEqual(restored.selectedSurahID, 1)
         XCTAssertEqual(restored.bookmarks, [VerseReference(surahID: 2, verseID: 1)])
         XCTAssertEqual(restored.automaticVerseOffset, 1)
         XCTAssertEqual(restored.automaticNextReference, VerseReference(surahID: 1, verseID: 2))
@@ -663,6 +756,49 @@ final class AppStoreTests: XCTestCase {
             XCTAssertEqual(try store.exportReadingBackup(), before)
         }
     }
+}
+
+private func fourSurahLibrary() -> QuranLibrary {
+    QuranLibrary(surahs: [
+        Surah(
+            id: 1,
+            name: "الأولى",
+            transliteration: "First",
+            type: "meccan",
+            totalVerses: 2,
+            verses: [
+                Verse(id: 1, text: "الآية الأولى"),
+                Verse(id: 2, text: "الآية الثانية")
+            ]
+        ),
+        Surah(
+            id: 2,
+            name: "الثانية",
+            transliteration: "Second",
+            type: "medinan",
+            totalVerses: 2,
+            verses: [
+                Verse(id: 1, text: "الآية الثالثة"),
+                Verse(id: 2, text: "الآية الرابعة")
+            ]
+        ),
+        Surah(
+            id: 3,
+            name: "الثالثة",
+            transliteration: "Third",
+            type: "meccan",
+            totalVerses: 1,
+            verses: [Verse(id: 1, text: "الآية الخامسة")]
+        ),
+        Surah(
+            id: 4,
+            name: "الرابعة",
+            transliteration: "Fourth",
+            type: "medinan",
+            totalVerses: 1,
+            verses: [Verse(id: 1, text: "الآية السادسة")]
+        )
+    ])
 }
 
 private func twoSurahLibrary() -> QuranLibrary {

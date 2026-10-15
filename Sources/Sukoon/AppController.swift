@@ -12,11 +12,18 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
     private let popover = NSPopover()
     private var workspace: NSWindow?
     private var reminderPanel: ReminderPanel?
+    private var successPanel: NSPanel?
+    private var successDismissalTimer: Timer?
+    private var handledCelebration: Celebration?
     private var timer: Timer?
     private var reminderDismissalTimer: Timer?
     private var availabilityTimer: Timer?
     private var displayedReminderID: UUID?
     private var displayedReminderIsPreview = false
+    private var displayedReminder: ReminderContent?
+    private var reminderMeasurement: (key: ReminderMeasurementKey, height: CGFloat)?
+    private var resizingReminder = false
+    private var applyingReminderFrame = false
     private var popoverDismissalTimer: Timer?
     private var scheduledConfiguration: ScheduleConfiguration?
     private var nativeLanguage: AppLanguage?
@@ -29,6 +36,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
     init(store: AppStore) {
         self.store = store
         super.init()
+        _ = QuranFonts.shared
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -58,6 +66,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
         stopping = true
         timer?.invalidate()
         reminderDismissalTimer?.invalidate()
+        successDismissalTimer?.invalidate()
         popoverDismissalTimer?.invalidate()
         availabilityTimer?.invalidate()
         NotificationCenter.default.removeObserver(self)
@@ -82,14 +91,14 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
         statusItem = item
         popover.behavior = .transient
         popover.delegate = self
-        popover.contentSize = NSSize(width: 360, height: 288)
-        popover.contentViewController = NSHostingController(rootView:
+        let controller = NSHostingController(rootView:
             ThemeRoot(store: store) {
                 MenuBarView(store: store, reminderClock: reminderClock, onOpen: { [weak self] section in
                     guard let self else { return }
                     if section == .quran,
                        let reference = (self.store.lastReminder ?? self.store.previewReminder())?.reference {
                         self.navigation.readerSurahID = reference.surahID
+                        self.navigation.readerReference = reference
                     }
                     self.openWorkspace(section)
                 }, onPreview: { [weak self] in
@@ -98,6 +107,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
                 }, onQuit: { NSApp.terminate(nil) })
             }
         )
+        controller.sizingOptions = [.preferredContentSize]
+        popover.contentViewController = controller
     }
 
     @objc private func togglePopover() {
@@ -126,7 +137,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
         if let section { navigation.section = section }
         popover.performClose(nil)
         if workspace == nil {
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1120, height: 800),
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 640),
                                   styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                                   backing: .buffered, defer: false)
             window.title = AppLocalization(language: store.settings.language).text("Sukoon")
@@ -134,18 +145,23 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
             window.titleVisibility = .hidden
             window.titlebarAppearsTransparent = true
             window.isMovableByWindowBackground = true
-            window.minSize = NSSize(width: 1040, height: 720)
+            window.minSize = NSSize(width: 520, height: 380)
             window.isReleasedWhenClosed = false
             window.delegate = self
-            window.setFrameAutosaveName("SukoonWorkspace")
-            window.contentViewController = NSHostingController(rootView:
+            let controller = NSHostingController(rootView:
                 ThemeRoot(store: store) {
                     WorkspaceView(store: store, navigation: navigation, reminderClock: reminderClock, onPreview: { [weak self] in
                         self?.presentReminder(preview: true)
                     })
                 }
             )
-            window.center()
+            controller.sizingOptions = []
+            window.contentViewController = controller
+            if !window.setFrameUsingName("SukoonWorkspace") {
+                window.setContentSize(NSSize(width: 820, height: 640))
+                window.center()
+            }
+            window.setFrameAutosaveName("SukoonWorkspace")
             workspace = window
         }
         updateAppearance()
@@ -161,8 +177,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
         guard preview || reminderPanel?.isVisible != true else { return false }
         guard let content = preview ? store.previewReminder() : store.nextReminder() else { return false }
         if reminderPanel == nil {
-            let panel = ReminderPanel(contentRect: NSRect(x: 0, y: 0, width: 400, height: 280),
-                                      styleMask: [.borderless, .nonactivatingPanel],
+            let panel = ReminderPanel(contentRect: NSRect(x: 0, y: 0, width: 380, height: 180),
+                                      styleMask: [.borderless, .resizable, .nonactivatingPanel],
                                       backing: .buffered, defer: false)
             panel.isOpaque = false
             panel.backgroundColor = .clear
@@ -173,12 +189,17 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
             panel.level = .floating
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
             panel.isMovableByWindowBackground = true
+            panel.delegate = self
+            panel.minSize = NSSize(width: 280, height: 148)
             reminderPanel = panel
         }
         guard let panel = reminderPanel else { return false }
+        applyingReminderFrame = true
+        defer { applyingReminderFrame = false }
         displayedReminderID = content.id
         displayedReminderIsPreview = preview
-        panel.contentViewController = NSHostingController(rootView:
+        displayedReminder = content
+        let controller = NSHostingController(rootView:
             ThemeRoot(store: store) {
                 ReminderView(store: store, content: content, isPreview: preview,
                              onDismiss: { [weak self] in self?.dismissReminder() },
@@ -194,6 +215,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
                     guard let self else { return }
                     if let reference = content.reference {
                         self.navigation.readerSurahID = reference.surahID
+                        self.navigation.readerReference = reference
                         self.openWorkspace(.quran)
                     } else {
                         self.openWorkspace(.today)
@@ -202,9 +224,14 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
                 })
             }
         )
+        controller.sizingOptions = []
+        panel.contentViewController = controller
         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
         if let frame = screen?.visibleFrame {
-            panel.setFrame(NSRect(x: frame.maxX - 424, y: frame.maxY - 304, width: 400, height: 280), display: false)
+            let size = reminderPanelSize(for: content, on: frame)
+            panel.maxSize = NSSize(width: frame.width - 32, height: frame.height - 32)
+            panel.setFrame(NSRect(x: frame.maxX - size.width - 24, y: frame.maxY - size.height - 24,
+                                  width: size.width, height: size.height), display: false)
         }
         updateAppearance()
         panel.orderFrontRegardless()
@@ -233,6 +260,162 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
         reminderPanel?.orderOut(nil)
         displayedReminderID = nil
         displayedReminderIsPreview = false
+        displayedReminder = nil
+    }
+
+    func windowWillStartLiveResize(_ notification: Notification) {
+        guard let panel = notification.object as? NSWindow, panel === reminderPanel else { return }
+        resizingReminder = true
+    }
+
+    func windowDidEndLiveResize(_ notification: Notification) {
+        guard let panel = notification.object as? NSWindow, panel === reminderPanel else { return }
+        resizingReminder = false
+        saveReminderSize(panel)
+    }
+
+    func windowDidResize(_ notification: Notification) {
+        guard !resizingReminder, !applyingReminderFrame,
+              let panel = notification.object as? NSWindow, panel === reminderPanel else { return }
+        saveReminderSize(panel)
+    }
+
+    private func saveReminderSize(_ panel: NSWindow) {
+        let width = Double(panel.frame.width)
+        let height = Double(panel.frame.height)
+        guard store.settings.reminderPanelWidth != width || store.settings.reminderPanelHeight != height else { return }
+        var settings = store.settings
+        settings.reminderPanelWidth = width
+        settings.reminderPanelHeight = height
+        store.settings = settings
+    }
+
+    private struct ReminderMeasurementKey: Equatable {
+        let id: UUID
+        let width: CGFloat
+        let fontName: String
+        let pointSize: Double
+    }
+
+    private func reminderPanelSize(for content: ReminderContent, on screen: NSRect) -> NSSize {
+        let maximumWidth = max(280, screen.width - 32)
+        let maximumHeight = max(148, screen.height - 32)
+        let width = min(max(CGFloat(store.settings.reminderPanelWidth ?? 380), 280), maximumWidth)
+        if let height = store.settings.reminderPanelHeight {
+            return NSSize(width: width, height: min(max(CGFloat(height), 148), maximumHeight))
+        }
+        let fontName = QuranFonts.shared.resolvedFontName(store.settings.quranFontName)
+        let key = ReminderMeasurementKey(
+            id: content.id, width: width, fontName: fontName, pointSize: store.settings.arabicFontSize
+        )
+        let textHeight: CGFloat
+        if let measurement = reminderMeasurement, measurement.key == key {
+            textHeight = measurement.height
+        } else {
+            let pointSize = CGFloat(store.settings.arabicFontSize)
+            let font = NSFont(name: fontName, size: pointSize) ?? .systemFont(ofSize: pointSize)
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.baseWritingDirection = .rightToLeft
+            paragraph.lineSpacing = max(8, pointSize * 0.42)
+            let text = NSAttributedString(string: content.arabic, attributes: [
+                .font: font, .paragraphStyle: paragraph
+            ])
+            textHeight = ceil(text.boundingRect(
+                with: NSSize(width: width - 40, height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading]
+            ).height)
+            reminderMeasurement = (key, textHeight)
+        }
+        return NSSize(width: width, height: min(max(textHeight + 124, 148), min(640, maximumHeight)))
+    }
+
+    private func resizeVisibleReminder() {
+        guard let panel = reminderPanel, panel.isVisible, !resizingReminder, !applyingReminderFrame,
+              let content = displayedReminder, let screen = panel.screen?.visibleFrame else { return }
+        let size = reminderPanelSize(for: content, on: screen)
+        guard panel.frame.size != size else { return }
+        let x = min(max(panel.frame.maxX - size.width, screen.minX + 16), screen.maxX - size.width - 16)
+        let y = min(max(panel.frame.maxY - size.height, screen.minY + 16), screen.maxY - size.height - 16)
+        applyingReminderFrame = true
+        defer { applyingReminderFrame = false }
+        panel.setFrame(NSRect(origin: NSPoint(x: x, y: y), size: size), display: true)
+    }
+
+    private func handleCelebration() {
+        let celebration = store.celebration
+        guard celebration != handledCelebration else { return }
+        handledCelebration = celebration
+        switch celebration {
+        case let .some(.surah(id)):
+            presentSurahSuccess(id)
+        case .some(.khatm):
+            successPanel?.orderOut(nil)
+            openWorkspace(.journey)
+        case .none:
+            break
+        }
+    }
+
+    private func presentSurahSuccess(_ id: Int) {
+        guard let surah = store.library.surah(id) else { return }
+        let nextSurah: Surah?
+        if store.settings.mode == .surah, let selected = store.activeSurah, selected.id != id {
+            nextSurah = selected
+        } else if store.settings.mode == .automatic, let automatic = store.automaticSurah, automatic.id > id {
+            nextSurah = automatic
+        } else {
+            nextSurah = store.library.surahs.first { $0.id > id && store.nextUnreadVerse(in: $0.id) != nil }
+                ?? store.library.surahs.first { $0.id < id && store.nextUnreadVerse(in: $0.id) != nil }
+        }
+        if navigation.readerSurahID == id, let nextSurah {
+            navigation.readerSurahID = nextSurah.id
+            if store.settings.mode == .automatic,
+               let reference = store.automaticNextReference, reference.surahID == nextSurah.id {
+                navigation.readerReference = reference
+            } else if let verse = store.nextUnreadVerse(in: nextSurah.id) {
+                navigation.readerReference = VerseReference(surahID: nextSurah.id, verseID: verse.id)
+            }
+        }
+        successDismissalTimer?.invalidate()
+        if successPanel == nil {
+            let panel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel],
+                                backing: .buffered, defer: false)
+            panel.isOpaque = false
+            panel.backgroundColor = .clear
+            panel.hasShadow = true
+            panel.level = .floating
+            panel.hidesOnDeactivate = false
+            panel.isReleasedWhenClosed = false
+            panel.ignoresMouseEvents = true
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            successPanel = panel
+        }
+        guard let panel = successPanel,
+              let screen = reminderPanel?.screen ?? workspace?.screen ?? NSScreen.main else { return }
+        let controller = NSHostingController(rootView: ThemeRoot(store: store) {
+            SurahSuccessView(surah: surah, nextSurah: nextSurah)
+        })
+        controller.sizingOptions = []
+        let available = screen.visibleFrame
+        let width = min(340, available.width - 32)
+        let size = controller.sizeThatFits(in: NSSize(width: width, height: 180))
+        panel.contentViewController = controller
+        var y = available.maxY - size.height - 24
+        if let reminder = reminderPanel, reminder.isVisible {
+            y = max(available.minY + 16, reminder.frame.minY - size.height - 10)
+        }
+        panel.setFrame(NSRect(x: available.maxX - width - 24, y: y,
+                              width: width, height: size.height), display: false)
+        panel.orderFrontRegardless()
+        let timer = Timer(timeInterval: 4, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.successPanel?.orderOut(nil)
+                if self.store.celebration == .surah(id) { self.store.celebration = nil }
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        successDismissalTimer = timer
     }
 
     func scheduleNextReminder() {
@@ -346,7 +529,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
                 self.updateStatus()
                 self.updateLanguage()
                 if self.scheduledConfiguration != self.scheduleConfiguration { self.scheduleNextReminder() }
-                if self.store.celebration != nil { self.openWorkspace(.journey) }
+                self.resizeVisibleReminder()
+                self.handleCelebration()
                 self.observeStore()
             }
         }
@@ -451,6 +635,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
         availabilityTimer?.invalidate()
         availabilityTimer = nil
         dismissReminder()
+        successPanel?.orderOut(nil)
         popover.performClose(nil)
     }
 }
@@ -465,4 +650,32 @@ final class ReminderClock {
 private final class ReminderPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+}
+
+private struct SurahSuccessView: View {
+    @Environment(\.sukoonPalette) private var palette
+    @Environment(\.sukoonLocalization) private var l10n
+    let surah: Surah
+    let nextSurah: Surah?
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 25))
+                .foregroundStyle(palette.success)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(l10n.format("%@ complete", l10n.surahName(surah), table: "Workspace"))
+                    .font(.headline)
+                if let nextSurah {
+                    Text(l10n.format("Continuing with %@", l10n.surahName(nextSurah), table: "Workspace"))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(palette.canvas, in: RoundedRectangle(cornerRadius: 16))
+    }
 }

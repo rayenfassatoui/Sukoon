@@ -7,11 +7,13 @@ import SukoonCore
 final class AppNavigation {
     var section: AppSection = .today
     var readerSurahID: Int = 1
+    var readerReference: VerseReference?
 }
 
 enum AppSection: String, CaseIterable, Identifiable {
     case today
     case quran
+    case favourites
     case journey
     case settings
 
@@ -21,6 +23,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         switch self {
         case .today: "Today"
         case .quran: "Quran"
+        case .favourites: "Favourites"
         case .journey: "Journey"
         case .settings: "Settings"
         }
@@ -31,6 +34,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .today: "sun.max"
         case .quran: "book.closed"
         case .journey: "chart.line.uptrend.xyaxis"
+        case .favourites: "heart"
         case .settings: "gearshape"
         }
     }
@@ -75,6 +79,10 @@ private struct LocalizationKey: EnvironmentKey {
     static let defaultValue = AppLocalization(language: .english)
 }
 
+private struct QuranFontNameKey: EnvironmentKey {
+    static let defaultValue = "GeezaPro"
+}
+
 extension EnvironmentValues {
     var sukoonPalette: Palette {
         get { self[PaletteKey.self] }
@@ -84,6 +92,11 @@ extension EnvironmentValues {
     var sukoonLocalization: AppLocalization {
         get { self[LocalizationKey.self] }
         set { self[LocalizationKey.self] = newValue }
+    }
+
+    var sukoonQuranFontName: String {
+        get { self[QuranFontNameKey.self] }
+        set { self[QuranFontNameKey.self] = newValue }
     }
 }
 
@@ -104,6 +117,7 @@ struct ThemeRoot<Content: View>: View {
         content
             .environment(\.sukoonPalette, palette)
             .environment(\.sukoonLocalization, l10n)
+            .environment(\.sukoonQuranFontName, QuranFonts.shared.resolvedFontName(store.settings.quranFontName))
             .environment(\.locale, l10n.locale)
             .environment(\.layoutDirection, l10n.isArabic ? .rightToLeft : .leftToRight)
             .tint(palette.accent)
@@ -112,6 +126,7 @@ struct ThemeRoot<Content: View>: View {
 }
 
 struct ArabicText: View {
+    @Environment(\.sukoonQuranFontName) private var fontName
     private let text: String
     private let size: Double
 
@@ -123,13 +138,12 @@ struct ArabicText: View {
     var body: some View {
         let pointSize = CGFloat(size)
         Text(text)
-            .font(.custom("Geeza Pro", size: pointSize))
+            .font(.custom(fontName, size: pointSize))
             .lineSpacing(max(8, pointSize * 0.42))
             .multilineTextAlignment(.leading)
             .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
             .environment(\.layoutDirection, .rightToLeft)
-            .accessibilityLabel(Text(text))
     }
 }
 
@@ -171,7 +185,7 @@ struct SukoonCardModifier: ViewModifier {
 }
 
 extension View {
-    func sukoonCard(padding: CGFloat = 22) -> some View {
+    func sukoonCard(padding: CGFloat = 16) -> some View {
         modifier(SukoonCardModifier(padding: padding))
     }
 }

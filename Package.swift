@@ -11,7 +11,7 @@ let package = Package(
     ],
     targets: [
         .target(name: "SukoonCore", resources: [.process("Resources")]),
-        .executableTarget(name: "Sukoon", dependencies: ["SukoonCore"]),
+        .executableTarget(name: "Sukoon", dependencies: ["SukoonCore"], resources: [.copy("Resources")]),
         .testTarget(name: "SukoonCoreTests", dependencies: ["SukoonCore"])
     ]
 )

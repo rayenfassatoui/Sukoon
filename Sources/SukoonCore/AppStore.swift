@@ -52,6 +52,7 @@ public final class AppStore {
     @ObservationIgnored private var duaReminderID: UUID
     @ObservationIgnored private var surahReminderID: UUID
     @ObservationIgnored private var automaticReminderID: UUID
+    @ObservationIgnored private var surahPreviewID: UUID
     @ObservationIgnored private var automaticPreviewID: UUID
     @ObservationIgnored private var applyingReadingBackup = false
     private var readVerses: Set<VerseReference> {
@@ -80,6 +81,7 @@ public final class AppStore {
         duaReminderID = UUID()
         surahReminderID = UUID()
         automaticReminderID = UUID()
+        surahPreviewID = UUID()
         automaticPreviewID = UUID()
 
         var decodedState: PersistedState?
@@ -242,13 +244,15 @@ public final class AppStore {
         guard inserted else { return }
         readCountsBySurah[surahID, default: 0] += 1
 
-        if readVerseCount == library.verseCount, library.verseCount > 0 {
-            celebration = .khatm
-        } else if let surah = library.surah(surahID),
-                  !surah.verses.isEmpty,
-                  readCount(in: surahID) == surah.verses.count {
-            celebration = .surah(surahID)
+        guard let surah = library.surah(surahID),
+              readCount(in: surahID) == surah.verses.count else { return }
+
+        if settings.mode == .surah, selectedSurahID == surahID,
+           let nextSurahID = nextUnreadSurahID(after: surahID) {
+            selectedSurahID = nextSurahID
         }
+
+        celebration = readVerseCount == library.verseCount ? .khatm : .surah(surahID)
     }
 
     public func toggleBookmark(surahID: Int, verseID: Int) {
@@ -317,7 +321,8 @@ public final class AppStore {
         let reminder = makeReminder(
             for: settings.mode,
             sequence: reminderSequence,
-            automaticID: automaticReminderID
+            automaticID: automaticReminderID,
+            isPreview: false
         )
         if reminder != nil {
             reminderSequence &+= 1
@@ -334,7 +339,8 @@ public final class AppStore {
         makeReminder(
             for: settings.mode,
             sequence: reminderSequence,
-            automaticID: automaticPreviewID
+            automaticID: automaticPreviewID,
+            isPreview: true
         )
     }
 
@@ -344,10 +350,14 @@ public final class AppStore {
                   lastReminder?.id == reminder.id,
                   let reference = reminder.reference,
                   reference == automaticNextReference else { return }
-            // Persist the cursor and unique mark together through markRead's write.
+            // A cursor step and its unique mark share the same persisted boundary.
+            let wasAlreadyRead = readVerses.contains(reference)
             automaticVerseOffset += 1
             markRead(surahID: reference.surahID, verseID: reference.verseID)
-            if isAutomaticComplete {
+            if wasAlreadyRead {
+                persist()
+            }
+            if isAutomaticComplete, celebration != .khatm {
                 celebration = .khatm
             }
             return
@@ -374,13 +384,15 @@ public final class AppStore {
         duaReminderID = UUID()
         surahReminderID = UUID()
         automaticReminderID = UUID()
+        surahPreviewID = UUID()
         automaticPreviewID = UUID()
     }
 
     private func makeReminder(
         for mode: ReminderMode,
         sequence: UInt64,
-        automaticID: UUID
+        automaticID: UUID,
+        isPreview: Bool
     ) -> ReminderContent? {
         let selection = Self.pseudoRandom(reminderSeed &+ sequence)
         return switch mode {
@@ -389,7 +401,7 @@ public final class AppStore {
         case .dua:
             makeDuaReminder(selection: selection)
         case .surah:
-            makeSurahReminder()
+            makeSurahReminder(id: isPreview ? surahPreviewID : surahReminderID)
         case .automatic:
             makeAutomaticReminder(id: automaticID)
         case .mixed:
@@ -442,13 +454,13 @@ public final class AppStore {
         return nil
     }
 
-    private func makeSurahReminder() -> ReminderContent? {
+    private func makeSurahReminder(id: UUID) -> ReminderContent? {
         guard let surah = activeSurah,
               let verse = nextUnreadVerse(in: surah.id) else { return nil }
         let l10n = AppLocalization(language: settings.language, quranNumberStyle: settings.quranNumberStyle)
         let reference = VerseReference(surahID: surah.id, verseID: verse.id)
         return ReminderContent(
-            id: surahReminderID,
+            id: id,
             kind: .surah,
             arabic: verse.text,
             title: l10n.format("Continue %@", l10n.surahName(surah)),
@@ -471,12 +483,28 @@ public final class AppStore {
         )
     }
 
+    private func nextUnreadSurahID(after surahID: Int) -> Int? {
+        guard let completedIndex = library.surahs.firstIndex(where: { $0.id == surahID }) else {
+            return nil
+        }
+        for surah in library.surahs.dropFirst(completedIndex + 1)
+            where !surah.verses.isEmpty && readCount(in: surah.id) < surah.verses.count {
+            return surah.id
+        }
+        for surah in library.surahs.prefix(completedIndex)
+            where !surah.verses.isEmpty && readCount(in: surah.id) < surah.verses.count {
+            return surah.id
+        }
+        return nil
+    }
+
     private func invalidatePendingReminder() {
         lastReminder = nil
         ayahReminderID = UUID()
         duaReminderID = UUID()
         surahReminderID = UUID()
         automaticReminderID = UUID()
+        surahPreviewID = UUID()
         automaticPreviewID = UUID()
     }
 

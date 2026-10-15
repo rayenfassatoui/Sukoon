@@ -12,6 +12,7 @@ struct SettingsView: View {
     let onPreview: () -> Void
     @State private var showingResetConfirmation = false
     @State private var services = AppServices()
+    @State private var fonts = QuranFonts.shared
 
     private let intervalOptions = [30, 60, 120, 300, 600, 900, 1800, 3600, 7200]
     private let menuBarAutoCloseOptions = [10, 15, 20]
@@ -51,35 +52,8 @@ struct SettingsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                HStack(alignment: .top) {
-                    SukoonSectionTitle(
-                        l10n.text("Settings", table: "Preferences"),
-                        eyebrow: l10n.text("Make Sukoon yours", table: "Preferences"),
-                        detail: l10n.text(
-                            "Shape the pace, appearance, and way reminders become reading progress.",
-                            table: "Preferences"
-                        )
-                    )
-                    Spacer(minLength: 24)
-                    Button(action: onPreview) {
-                        Label(
-                            l10n.text("Preview reminder", table: "Preferences"),
-                            systemImage: "play.circle"
-                        )
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .disabled(!canPreview)
-                    .help(
-                        l10n.text(
-                            canPreview
-                                ? "Show a preview without changing progress"
-                                : "No reminder content is available to preview.",
-                            table: "Preferences"
-                        )
-                    )
-                }
+            VStack(alignment: .leading, spacing: 14) {
+                settingsHeader
 
                 settingsSection(l10n.text("Language", table: "Preferences"), symbol: "globe") {
                     SettingsRow(
@@ -284,7 +258,53 @@ struct SettingsView: View {
                 }
 
                 settingsSection(l10n.text("Reading", table: "Preferences"), symbol: "textformat.size") {
-                    VStack(alignment: .leading, spacing: 14) {
+                    SettingsRow(
+                        title: l10n.text("Quran font", table: "Preferences"),
+                        detail: l10n.text("Choose a mushaf font for ayahs in every view. Bundled fonts work offline.", table: "Preferences")
+                    ) {
+                        HStack(spacing: 8) {
+                            Picker(l10n.text("Quran font", table: "Preferences"), selection: Binding(
+                                get: { fonts.resolvedFontName(store.settings.quranFontName) },
+                                set: { store.settings.quranFontName = $0 }
+                            )) {
+                                ForEach(fonts.options) { font in
+                                    Text(font.name).tag(font.id)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(width: 220)
+                            .accessibilityIdentifier("settings.quranFont")
+                            Button {
+                                fonts.refreshInstalledFonts()
+                            } label: {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                            .buttonStyle(.borderless)
+                            .help(l10n.text("Refresh installed fonts", table: "Preferences"))
+                            .accessibilityLabel(l10n.text("Refresh installed fonts", table: "Preferences"))
+                            .accessibilityIdentifier("settings.refreshFonts")
+                        }
+                    }
+                    if fonts.resolvedFontName(store.settings.quranFontName) != store.settings.quranFontName {
+                        Label(
+                            l10n.text("The saved font is unavailable. Geeza Pro is being used.", table: "Preferences"),
+                            systemImage: "exclamationmark.triangle"
+                        )
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    }
+                    if !fonts.registrationErrors.isEmpty {
+                        Text(l10n.format(
+                            "Some fonts could not be loaded: %@",
+                            fonts.registrationErrors.joined(separator: "\n"),
+                            table: "Preferences"
+                        ))
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                    }
+                    Divider()
+                    VStack(alignment: .leading, spacing: 10) {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(l10n.text("Arabic text size", table: "Preferences"))
@@ -317,7 +337,7 @@ struct SettingsView: View {
 
                         if let sample = store.library.surah(1)?.verses.first {
                             ArabicText(sample.text, size: store.settings.arabicFontSize)
-                                .padding(18)
+                                .padding(12)
                                 .background(
                                     palette.raisedSurface,
                                     in: RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -414,7 +434,7 @@ struct SettingsView: View {
                     SettingsRow(
                         title: l10n.text("Reset Quran progress", table: "Preferences"),
                         detail: l10n.text(
-                            "Removes all marked verses, both reading positions, and your bookmarks. Appearance and reminder preferences are preserved.",
+                            "Removes all marked verses, both reading positions, and your favourites. Appearance and reminder preferences are preserved.",
                             table: "Preferences"
                         )
                     ) {
@@ -436,9 +456,9 @@ struct SettingsView: View {
                     }
                 }
             }
-            .padding(.horizontal, 38)
-            .padding(.top, 38)
-            .padding(.bottom, 48)
+            .padding(.horizontal, 18)
+            .padding(.top, 20)
+            .padding(.bottom, 20)
             .frame(maxWidth: 960)
             .frame(maxWidth: .infinity)
         }
@@ -466,11 +486,48 @@ struct SettingsView: View {
         } message: {
             Text(
                 l10n.text(
-                    "This cannot be undone. Your marked verses, automatic and chosen-surah positions, and bookmarks will be removed.",
+                    "This cannot be undone. Your marked verses, automatic and chosen-surah positions, and favourites will be removed.",
                     table: "Preferences"
                 )
             )
         }
+    }
+
+    private var settingsHeader: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 16) {
+                settingsTitle
+                Spacer(minLength: 12)
+                previewButton
+            }
+            VStack(alignment: .leading, spacing: 12) {
+                settingsTitle
+                previewButton
+            }
+        }
+    }
+
+    private var settingsTitle: some View {
+        SukoonSectionTitle(
+            l10n.text("Settings", table: "Preferences"),
+            eyebrow: l10n.text("Make Sukoon yours", table: "Preferences"),
+            detail: l10n.text(
+                "Shape the pace, appearance, and way reminders become reading progress.",
+                table: "Preferences"
+            )
+        )
+    }
+
+    private var previewButton: some View {
+        Button(action: onPreview) {
+            Label(l10n.text("Preview reminder", table: "Preferences"), systemImage: "play.circle")
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(!canPreview)
+        .help(l10n.text(
+            canPreview ? "Show a preview without changing progress" : "No reminder content is available to preview.",
+            table: "Preferences"
+        ))
     }
 
     private var startupSection: some View {
@@ -508,7 +565,7 @@ struct SettingsView: View {
     }
 
     private var reminderTimingControls: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 12) {
             SettingsRow(
                 title: l10n.text("Reminder auto-close", table: "Preferences"),
                 detail: l10n.text("How long reminder and preview panels stay open. Default: 10 seconds.", table: "Preferences")
@@ -522,6 +579,23 @@ struct SettingsView: View {
                 .pickerStyle(.menu)
                 .frame(width: 180)
                 .accessibilityIdentifier("settings.reminderAutoClose")
+            }
+
+            Divider()
+
+            SettingsRow(
+                title: l10n.text("Reminder size", table: "Preferences"),
+                detail: l10n.text("Drag the popup edges to resize it. Your size is saved; fit it to the verse to remove extra space.", table: "Preferences")
+            ) {
+                Button(l10n.text("Fit to verse", table: "Preferences")) {
+                    var settings = store.settings
+                    settings.reminderPanelWidth = nil
+                    settings.reminderPanelHeight = nil
+                    store.settings = settings
+                }
+                .buttonStyle(.bordered)
+                .disabled(store.settings.reminderPanelWidth == nil && store.settings.reminderPanelHeight == nil)
+                .accessibilityIdentifier("settings.fitReminder")
             }
 
             Divider()
@@ -643,7 +717,7 @@ struct SettingsView: View {
     private var backupSection: some View {
         settingsSection(l10n.text("Reading backup", table: "Preferences"), symbol: "externaldrive") {
             Text(l10n.text(
-                "Save or restore your read marks, both reading positions and bookmarks. Other preferences stay unchanged.",
+                "Save or restore your read marks, both reading positions and favourites. Other preferences stay unchanged.",
                 table: "Preferences"
             ))
             .font(.callout)
@@ -816,13 +890,13 @@ struct SettingsView: View {
         symbol: String,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 12) {
             Label(title, systemImage: symbol)
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(palette.accent)
             content()
         }
-        .sukoonCard(padding: 24)
+        .sukoonCard(padding: 16)
     }
 }
 
@@ -839,12 +913,12 @@ private struct SettingsRow<Trailing: View>: View {
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(alignment: .center, spacing: 24) {
+            HStack(alignment: .center, spacing: 16) {
                 text
                 trailing
                     .fixedSize(horizontal: true, vertical: false)
             }
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
                 text
                 trailing
                     .frame(maxWidth: .infinity, alignment: .leading)

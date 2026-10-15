@@ -158,7 +158,7 @@ final class AppServices {
     func exportReadingProgress(from store: AppStore, localization: AppLocalization) {
         let panel = NSSavePanel()
         panel.title = localization.text("Export reading progress")
-        panel.message = localization.text("Save your read verses, reading position and bookmarks as a JSON backup.")
+        panel.message = localization.text("Save your read verses, reading position and favourites as a JSON backup.")
         panel.prompt = localization.text("Export")
         panel.allowedContentTypes = [.json]
         panel.allowsOtherFileTypes = false
@@ -209,7 +209,7 @@ final class AppServices {
             let alert = NSAlert()
             alert.alertStyle = .warning
             alert.messageText = localization.text("Replace reading progress?")
-            alert.informativeText = localization.text("This replaces your read verses, reading position and bookmarks with the backup. Your language, appearance and reminder settings will not change.")
+            alert.informativeText = localization.text("This replaces your read verses, reading position and favourites with the backup. Your language, appearance and reminder settings will not change.")
             alert.addButton(withTitle: localization.text("Replace progress"))
             alert.addButton(withTitle: localization.text("Cancel"))
             alert.buttons.last?.keyEquivalent = "\u{1b}"

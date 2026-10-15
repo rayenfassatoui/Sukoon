@@ -1,0 +1,95 @@
+Sukoon bundled Quran fonts
+===========================
+
+All font binaries in this directory are unmodified copies of the original
+font files named below. The SHA-256 values make the exact bytes auditable.
+The app registers them for the current process only; it does not install them
+in the user's system font collection. The seven text-font families listed by
+quranfonts.com include two families whose source terms do not permit
+redistribution; those two are intentionally not bundled (see the final
+section).
+
+Bundled files
+-------------
+
+1. oldmadina.otf — quranfonts.com label: Digital Khatt V1
+   PostScript name: DigitalKhattOldMadinaRegular
+   Copyright: DigitalKhatt contributors (the original file's name table)
+   Source: https://github.com/DigitalKhatt/oldmadinafont/blob/main/fonts/oldmadina.otf
+   License: SIL Open Font License 1.1 (DigitalKhatt-OldMadina-OFL.txt)
+   SHA-256: e83c1bdb8feffddf3596116de25cb04028ac96d86b5500db69478417917bf16f
+
+2. madina.otf — quranfonts.com label: Digital Khatt V2
+   PostScript name: DigitalKhattNewMadinaRegular
+   Copyright: Amine Anane / DigitalKhatt (the original file's name table)
+   Source: https://github.com/DigitalKhatt/madinafont/blob/main/madina.otf
+   License: SIL Open Font License 1.1 (DigitalKhatt-NewMadina-OFL.txt)
+   SHA-256: b739d35562ea8bd28367a0cb069f993f025e6d7c8b6882eae01456fd82c0e9ef
+
+3. indopak.otf — quranfonts.com label: Digital Khatt Indopak
+   PostScript name: DigitalKhattIndoPakRegular
+   Copyright: Amine Anane / DigitalKhatt (the original file's name table)
+   Source: https://github.com/DigitalKhatt/indopakfont/releases/tag/v1.0.0-beta.1
+   License: SIL Open Font License 1.1 (DigitalKhatt-IndoPak-OFL.txt)
+   SHA-256: 2d50541b53e98080ba0fd526b90a86838bac9f983da9ad6fea08e68b434b4408
+
+4. KFGQPCNastaleeq-Regular.ttf — quranfonts.com label: KFGQPC Nastaleeq
+   PostScript name: KFGQPCNastaleeq-Regular
+   Copyright: King Fahd Glorious Quran Printing Complex (KFGQPC), 2010;
+              Alif Lam Mim Tech. (Ashfaq A. Niazi)
+   Source mirror: https://quranfonts.com/fonts/KFGQPC%20Nastaleeq/KFGQPCNastaleeq-Regular.ttf
+   Original publisher: http://fonts.qurancomplex.gov.sa/
+   License: the embedded KFGQPC Electronic End-User License Agreement
+            (KFGQPC-EULA.txt), reproduced from the font's name table.
+   SHA-256: de174e33ae14cb581097940de298c8bb9cfa60f7a34d7d0ab0ba2bd5126f912c
+
+5. UthmanicHafs_V22.ttf — quranfonts.com label: QPC Hafs
+   PostScript name: KFGQPCHAFSUthmanicScript-Regula
+   Copyright: King Fahd Glorious Quran Printing Complex (KFGQPC), 2010
+   Source mirror: https://quranfonts.com/fonts/QPC%20Hafs%20font/UthmanicHafs_V22.ttf
+   Original publisher: http://fonts.qurancomplex.gov.sa/
+   License: the embedded KFGQPC Electronic End-User License Agreement
+            (KFGQPC-EULA.txt), reproduced from the font's name table.
+   SHA-256: aa68bffce289b4c0ebac68e90502eb69e42356abcd1603cb2b8e99c2c723f145
+
+6. AmiriQuran.ttf — Amiri Quran
+   PostScript name: AmiriQuran-Regular
+   Copyright: 2010-2022 The Amiri Project Authors
+   Source: https://github.com/aliftype/amiri/tree/1.003/fonts/AmiriQuran.ttf
+   License: SIL Open Font License 1.1 (Amiri-OFL.txt)
+   SHA-256: 5594121cfcd33d05ea4635b7908d15c0eced0c91aa06469a95354b3369ca2949
+
+Format and compatibility
+------------------------
+
+The bundled files are the original TrueType or OpenType font files. They
+contain Unicode Arabic cmap entries and OpenType Arabic shaping tables; they
+are text fonts, not page-index/private-glyph mushaf fonts. Apple documents
+CTFontManagerRegisterFontsForURL as the CoreText registration API
+(https://developer.apple.com/documentation/coretext/ctfontmanagerregisterfontsforurl(_:_:_:))
+and CTFontManagerIsSupportedFont as the native-format check.
+QuranFonts performs that check before every process-scoped registration and
+reports unsupported formats in registrationErrors rather than silently
+substituting another font. No WOFF/WOFF2 web-only file is shipped.
+
+Families not bundled: concrete source-term blockers
+----------------------------------------------------
+
+* Indopak Nastaleeq (quranfonts.com) currently downloads
+  AlQuran-IndoPak-by-QuranWBW. Its embedded name-table notice states:
+  "NOT FOR SALE, NOT FOR MODIFICATION, NOT FOR DISTRIBUTION OR NOT FOR
+  DEVELOPMENT WITHOUT WRITTEN NOTICE BY QURANWBW.COM" and supplies
+  quranwbw@gmail.com. The quranfonts page's free-download wording does not
+  override that explicit restriction. Written redistribution permission was
+  not available, so this binary is not copied or offered as an option.
+
+* Me Quran currently embeds: "Typeface and data © 2005, Meor Ridzuan. Free
+  for non commercial use. Other use, contact meory@yahoo.com". Sukoon's
+  redistribution/commercial status is not granted by that notice, and no
+  written permission for bundling was available. This binary is not copied
+  or offered as an option.
+
+The excluded binaries were inspected as Unicode Arabic text fonts, but are
+not silently replaced with page/glyph fonts or fake options. They can be
+added only after the respective copyright holders grant redistribution terms
+covering this app.

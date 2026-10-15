@@ -5,25 +5,15 @@ struct CelebrationView: View {
     @Environment(\.sukoonPalette) private var palette
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.sukoonLocalization) private var l10n
-    let celebration: Celebration
     let store: AppStore
     let navigation: AppNavigation
     let onDismiss: () -> Void
     @State private var appeared = false
 
-    private var completedSurah: Surah? {
-        guard case let .surah(id) = celebration else { return nil }
-        return store.library.surah(id)
-    }
-
-    private var nextSurah: Surah? {
-        guard let completedSurah else { return nil }
-        let laterUnread = store.library.surahs.first {
-            $0.id > completedSurah.id && store.nextUnreadVerse(in: $0.id) != nil
-        }
-        return laterUnread ?? store.library.surahs.first {
-            $0.id < completedSurah.id && store.nextUnreadVerse(in: $0.id) != nil
-        }
+    init(store: AppStore, navigation: AppNavigation, onDismiss: @escaping () -> Void) {
+        self.store = store
+        self.navigation = navigation
+        self.onDismiss = onDismiss
     }
 
     private var acceptanceVerse: Verse? {
@@ -63,18 +53,13 @@ struct CelebrationView: View {
                         .scaleEffect(appeared ? 1 : 0.86)
                         .opacity(appeared ? 1 : 0)
 
-                    switch celebration {
-                    case .surah:
-                        surahCelebration
-                    case .khatm:
-                        khatmCelebration
-                    }
+                    khatmCelebration
                 }
                 .padding(42)
                 .frame(maxWidth: 720)
                 .frame(maxWidth: .infinity)
             }
-            if celebration == .khatm && !reduceMotion {
+            if !reduceMotion {
                 CompletionConfetti()
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
@@ -101,133 +86,12 @@ struct CelebrationView: View {
             Circle()
                 .stroke(palette.accent.opacity(0.20), lineWidth: 1)
                 .frame(width: 92, height: 92)
-            Image(systemName: celebration == .khatm ? "sparkles" : "checkmark")
+            Image(systemName: "sparkles")
                 .font(.system(size: 42, weight: .semibold))
                 .foregroundStyle(palette.accent)
                 .accessibilityHidden(true)
         }
         .accessibilityHidden(true)
-    }
-
-    @ViewBuilder
-    private var surahCelebration: some View {
-        if let surah = completedSurah {
-            VStack(spacing: 17) {
-                Text(l10n.text("Surah complete", table: "Preferences"))
-                    .font(.caption.weight(.bold))
-                    .tracking(l10n.isArabic ? 0 : 1.8)
-                    .foregroundStyle(palette.accent)
-                Text(l10n.surahName(surah))
-                    .font(
-                        l10n.isArabic
-                            ? .custom("Geeza Pro", size: 38).weight(.bold)
-                            : .system(size: 38, weight: .bold, design: .rounded)
-                    )
-                    .multilineTextAlignment(.center)
-                if !l10n.isArabic {
-                    Text(surah.name)
-                        .font(.custom("Geeza Pro", size: 37).weight(.bold))
-                        .environment(\.layoutDirection, .rightToLeft)
-                        .foregroundStyle(palette.accent)
-                }
-                Text(
-                    l10n.format(
-                        "You marked all %@ verses. May each return to this surah deepen reflection and bring steadiness to your day.",
-                        l10n.number(surah.totalVerses),
-                        table: "Preferences"
-                    )
-                )
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: 520)
-
-                HStack(spacing: 12) {
-                    Button(
-                        l10n.text("Not now", table: "Preferences"),
-                        action: onDismiss
-                    )
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-                    .help(l10n.text("Close this celebration", table: "Preferences"))
-
-                    if store.settings.mode == .automatic,
-                       let reference = store.automaticNextReference,
-                       let automaticSurah = store.automaticSurah {
-                        Button {
-                            store.startAutomaticReading()
-                            navigation.readerSurahID = reference.surahID
-                            navigation.section = .quran
-                            onDismiss()
-                        } label: {
-                            Label(
-                                l10n.format(
-                                    "Continue automatic reading · %@",
-                                    l10n.surahName(automaticSurah),
-                                    table: "Preferences"
-                                ),
-                                systemImage: l10n.isArabic ? "arrow.left" : "arrow.right"
-                            )
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                        .help(l10n.text("Open the saved automatic Quran position", table: "Preferences"))
-                    } else if store.settings.mode == .automatic {
-                        Button {
-                            navigation.section = .journey
-                            onDismiss()
-                        } label: {
-                            Label(
-                                l10n.text("View completed journey", table: "Preferences"),
-                                systemImage: "checkmark.seal"
-                            )
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                    } else if let nextSurah {
-                        Button {
-                            store.startSurah(nextSurah.id)
-                            navigation.readerSurahID = nextSurah.id
-                            navigation.section = .quran
-                            onDismiss()
-                        } label: {
-                            Label(
-                                l10n.format(
-                                    "Begin %@",
-                                    l10n.surahName(nextSurah),
-                                    table: "Preferences"
-                                ),
-                                systemImage: l10n.isArabic ? "arrow.left" : "arrow.right"
-                            )
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                        .help(
-                            l10n.format(
-                                "Start reading %@",
-                                l10n.surahName(nextSurah),
-                                table: "Preferences"
-                            )
-                        )
-                    } else {
-                        Button {
-                            navigation.section = .journey
-                            onDismiss()
-                        } label: {
-                            Label(
-                                l10n.text("View journey", table: "Preferences"),
-                                systemImage: "chart.line.uptrend.xyaxis"
-                            )
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                        .help(l10n.text("Open your reading journey", table: "Preferences"))
-                    }
-                }
-                .padding(.top, 6)
-            }
-        }
     }
 
     private var khatmCelebration: some View {

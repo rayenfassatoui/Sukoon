@@ -74,7 +74,7 @@
 "The update check failed: %@" = "The update check failed: %@";
 "The release page could not be opened." = "The release page could not be opened.";
 "Export reading progress" = "Export reading progress";
-"Save your read verses, reading position and bookmarks as a JSON backup." = "Save your read verses, reading position and bookmarks as a JSON backup.";
+"Save your read verses, reading position and favourites as a JSON backup." = "Save your read verses, reading position and favourites as a JSON backup.";
 "Export" = "Export";
 "The selected file could not be accessed." = "The selected file could not be accessed.";
 "Reading progress could not be exported" = "Reading progress could not be exported";
@@ -82,10 +82,11 @@
 "Choose a Sukoon reading-progress JSON backup." = "Choose a Sukoon reading-progress JSON backup.";
 "Import" = "Import";
 "Replace reading progress?" = "Replace reading progress?";
-"This replaces your read verses, reading position and bookmarks with the backup. Your language, appearance and reminder settings will not change." = "This replaces your read verses, reading position and bookmarks with the backup. Your language, appearance and reminder settings will not change.";
+"This replaces your read verses, reading position and favourites with the backup. Your language, appearance and reminder settings will not change." = "This replaces your read verses, reading position and favourites with the backup. Your language, appearance and reminder settings will not change.";
 "Replace progress" = "Replace progress";
 "Cancel" = "Cancel";
 "Reading progress could not be imported" = "Reading progress could not be imported";
 "OK" = "OK";
 "This backup version is not supported." = "This backup version is not supported.";
 "The backup contains invalid Quran references or reading positions." = "The backup contains invalid Quran references or reading positions.";
+"Favourites" = "Favourites";

@@ -2,6 +2,7 @@ import SwiftUI
 import SukoonCore
 
 struct WorkspaceView: View {
+    @Environment(\.sukoonLocalization) private var l10n
     @Bindable private var store: AppStore
     @Bindable private var navigation: AppNavigation
     private let reminderClock: ReminderClock
@@ -16,35 +17,83 @@ struct WorkspaceView: View {
 
     private var celebrationBinding: Binding<Celebration?> {
         Binding(
-            get: { store.celebration },
+            get: {
+                guard case .khatm? = store.celebration else { return nil }
+                return .khatm
+            },
             set: { store.celebration = $0 }
         )
     }
 
+    @ViewBuilder
+    private var sectionContent: some View {
+        switch navigation.section {
+        case .today:
+            TodayView(store: store, navigation: navigation, reminderClock: reminderClock, onPreview: onPreview)
+        case .quran:
+            ReaderView(store: store, navigation: navigation)
+        case .journey:
+            JourneyView(store: store, navigation: navigation)
+        case .favourites:
+            FavouritesView(store: store, navigation: navigation)
+        case .settings:
+            SettingsView(store: store, navigation: navigation, onPreview: onPreview)
+        }
+    }
+
+    private var compactNavigation: some View {
+        HStack(spacing: 10) {
+            Text("سكون")
+                .font(.custom("Geeza Pro", size: 20).weight(.bold))
+                .environment(\.layoutDirection, .rightToLeft)
+
+            Menu {
+                ForEach(AppSection.allCases) { section in
+                    Button {
+                        navigation.section = section
+                    } label: {
+                        Label(l10n.text(section.title), systemImage: section.symbol)
+                    }
+                }
+            } label: {
+                Label(l10n.text(navigation.section.title), systemImage: navigation.section.symbol)
+                    .font(.callout.weight(.medium))
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .menuStyle(.borderlessButton)
+            .accessibilityLabel(l10n.text("Choose a section", table: "Workspace"))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.thinMaterial)
+    }
+
+
     var body: some View {
-        HStack(spacing: 0) {
-            WorkspaceSidebar(navigation: navigation)
-                .frame(width: 232)
-            Divider().opacity(0.5)
-            Group {
-                switch navigation.section {
-                case .today:
-                    TodayView(store: store, navigation: navigation, reminderClock: reminderClock, onPreview: onPreview)
-                case .quran:
-                    ReaderView(store: store, navigation: navigation)
-                case .journey:
-                    JourneyView(store: store, navigation: navigation)
-                case .settings:
-                    SettingsView(store: store, navigation: navigation, onPreview: onPreview)
+        GeometryReader { geometry in
+            let compact = geometry.size.width < 760
+            // Keep the destination's identity when only the navigation chrome changes.
+            HStack(spacing: 0) {
+                if !compact {
+                    WorkspaceSidebar(navigation: navigation)
+                        .frame(width: 214)
+                    Divider().opacity(0.5)
+                }
+                VStack(spacing: 0) {
+                    if compact {
+                        compactNavigation
+                        Divider().opacity(0.5)
+                    }
+                    sectionContent
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(minWidth: 1040, minHeight: 720)
-        .sheet(item: celebrationBinding) { celebration in
+        .background(.thinMaterial)
+        .sheet(item: celebrationBinding) { _ in
             ThemeRoot(store: store) {
                 CelebrationView(
-                    celebration: celebration,
                     store: store,
                     navigation: navigation,
                     onDismiss: { store.celebration = nil }
@@ -53,6 +102,7 @@ struct WorkspaceView: View {
         }
     }
 }
+
 
 private struct WorkspaceSidebar: View {
     @Environment(\.sukoonPalette) private var palette
@@ -201,28 +251,64 @@ private struct TodayView: View {
         return l10n.text("No reminder content is available right now.", table: "Workspace")
     }
 
+    private var previewButton: some View {
+        Button(action: onPreview) {
+            Label(
+                l10n.text("Preview reminder", table: "Workspace"),
+                systemImage: "bell.and.waves.left.and.right"
+            )
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .disabled(remembrance == nil)
+    }
+
+    private var statusCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Image(systemName: store.canDeliverReminder(at: reminderClock.now) ? "bell.badge" : "bell.slash")
+                .font(.title2)
+                .foregroundStyle(palette.accent)
+            Text(statusTitle)
+                .font(.title3.weight(.semibold))
+            Text(statusDetail)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(l10n.text("Open reminder settings", table: "Workspace")) {
+                navigation.section = .settings
+            }
+            .buttonStyle(.bordered)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .sukoonCard(padding: 18)
+    }
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 26) {
-                HStack(alignment: .top) {
-                    SukoonSectionTitle(
-                        l10n.text("A moment of sukoon", table: "Workspace"),
-                        eyebrow: l10n.text("Today", table: "Workspace"),
-                        detail: l10n.text(
-                            "Pause, breathe, and return to the words that steady the heart.",
-                            table: "Workspace"
+            VStack(alignment: .leading, spacing: 20) {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top) {
+                        SukoonSectionTitle(
+                            l10n.text("A moment of sukoon", table: "Workspace"),
+                            eyebrow: l10n.text("Today", table: "Workspace"),
+                            detail: l10n.text(
+                                "Pause, breathe, and return to the words that steady the heart.",
+                                table: "Workspace"
+                            )
                         )
-                    )
-                    Spacer(minLength: 24)
-                    Button(action: onPreview) {
-                        Label(
-                            l10n.text("Preview reminder", table: "Workspace"),
-                            systemImage: "bell.and.waves.left.and.right"
-                        )
+                        Spacer(minLength: 16)
+                        previewButton
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .disabled(remembrance == nil)
+                    VStack(alignment: .leading, spacing: 12) {
+                        SukoonSectionTitle(
+                            l10n.text("A moment of sukoon", table: "Workspace"),
+                            eyebrow: l10n.text("Today", table: "Workspace"),
+                            detail: l10n.text(
+                                "Pause, breathe, and return to the words that steady the heart.",
+                                table: "Workspace"
+                            )
+                        )
+                        previewButton
+                    }
                 }
 
                 if let remembrance {
@@ -241,7 +327,7 @@ private struct TodayView: View {
                         }
                         ArabicText(remembrance.arabic, size: min(store.settings.arabicFontSize, 38))
                     }
-                    .sukoonCard(padding: 26)
+                    .sukoonCard(padding: 18)
                 } else {
                     ContentUnavailableView(
                         l10n.text("Nothing queued yet", table: "Workspace"),
@@ -249,35 +335,24 @@ private struct TodayView: View {
                         description: Text(emptyReminderDetail)
                     )
                     .frame(maxWidth: .infinity)
-                    .sukoonCard()
+                    .sukoonCard(padding: 18)
                 }
 
-                HStack(alignment: .top, spacing: 18) {
-                    VStack(alignment: .leading, spacing: 15) {
-                        Image(systemName: store.canDeliverReminder(at: reminderClock.now) ? "bell.badge" : "bell.slash")
-                            .font(.title2)
-                            .foregroundStyle(palette.accent)
-                        Text(statusTitle)
-                            .font(.title3.weight(.semibold))
-                        Text(statusDetail)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer(minLength: 4)
-                        Button(l10n.text("Open reminder settings", table: "Workspace")) {
-                            navigation.section = .settings
-                        }
-                        .buttonStyle(.bordered)
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: 14) {
+                        statusCard
+                        ReadingPlanCard(store: store, navigation: navigation)
+                            .frame(maxWidth: .infinity)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .sukoonCard()
-
-                    ReadingPlanCard(store: store, navigation: navigation)
-                        .frame(maxWidth: .infinity)
+                    VStack(alignment: .leading, spacing: 14) {
+                        statusCard
+                        ReadingPlanCard(store: store, navigation: navigation)
+                            .frame(maxWidth: .infinity)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 14) {
-                    HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 5) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(l10n.text("Your Quran journey", table: "Workspace"))
                                 .font(.headline)
@@ -291,7 +366,6 @@ private struct TodayView: View {
                             )
                                 .foregroundStyle(.secondary)
                         }
-                        Spacer()
                         Text(l10n.percent(store.completionFraction))
                             .font(.title2.monospacedDigit().weight(.semibold))
                             .foregroundStyle(palette.accent)
@@ -302,11 +376,11 @@ private struct TodayView: View {
                     }
                     .buttonStyle(.link)
                 }
-                .sukoonCard()
+                .sukoonCard(padding: 18)
             }
-            .padding(.horizontal, 34)
-            .padding(.top, 38)
-            .padding(.bottom, 34)
+            .padding(.horizontal, 20)
+            .padding(.top, 24)
+            .padding(.bottom, 24)
             .frame(maxWidth: 1120, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .center)
         }
@@ -353,7 +427,6 @@ private struct ReadingPlanCard: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 4)
                 Button(l10n.text("Choose a surah", table: "Workspace")) {
                     navigation.section = .quran
                 }
@@ -361,7 +434,7 @@ private struct ReadingPlanCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .sukoonCard()
+        .sukoonCard(padding: 18)
     }
 
     @ViewBuilder
@@ -412,10 +485,9 @@ private struct ReadingPlanCard: View {
             Text(l10n.text("Chosen-surah reading", table: "Workspace"))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
-            HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text(l10n.surahName(surah))
                     .font(.title3.weight(.semibold))
-                Spacer()
                 Text(l10n.isArabic ? surah.transliteration : surah.name)
                     .font(l10n.isArabic ? .caption : .custom("Geeza Pro", size: 22))
                     .environment(\.layoutDirection, l10n.isArabic ? .leftToRight : .rightToLeft)
@@ -431,7 +503,6 @@ private struct ReadingPlanCard: View {
             .font(.callout)
             .foregroundStyle(.secondary)
             SukoonProgress(value: surah.totalVerses == 0 ? 0 : Double(read) / Double(surah.totalVerses))
-            Spacer(minLength: 4)
             Button(l10n.text("Continue in reader", table: "Workspace")) {
                 navigation.readerSurahID = surah.id
                 navigation.section = .quran

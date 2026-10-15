@@ -23,14 +23,16 @@ struct MenuBarView: View {
                 }
                 .defaultScrollAnchor(.center, for: .alignment)
                 .scrollBounceBehavior(.basedOnSize)
+                .frame(maxHeight: 220)
                 .id(content.id)
             } else {
                 Button { onOpen(automaticComplete ? .journey : .quran) } label: {
                     Text(l10n.text(automaticComplete ? "Automatic Quran complete" : "Choose a surah"))
                         .font(.custom("Geeza Pro", size: 28))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.plain)
+                .padding(.vertical, 18)
                 .accessibilityLabel(l10n.text(automaticComplete ? "Automatic Quran complete" : "Choose a surah"))
             }
 
@@ -52,65 +54,119 @@ struct MenuBarView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            HStack(spacing: 14) {
-                if let content {
-                    PassageReference(library: store.library, content: content)
-                }
-                Spacer()
-                Button { onOpen(.quran) } label: {
-                    Image(systemName: "book.closed")
-                        .frame(width: 24, height: 24)
-                }
-                .buttonStyle(.plain)
-                .help(l10n.text("Open the Quran"))
-                .accessibilityLabel(l10n.text("Open the Quran"))
-                .accessibilityIdentifier("workspace.open")
-
-                Menu {
-                    Button {
-                        store.settings.remindersEnabled.toggle()
-                    } label: {
-                        Label(l10n.text(store.settings.remindersEnabled ? "Pause reminders" : "Resume reminders"),
-                              systemImage: store.settings.remindersEnabled ? "pause" : "play")
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 14) {
+                    if let content {
+                        PassageReference(library: store.library, content: content)
                     }
-                    Menu(l10n.text("Snooze reminders"), systemImage: "moon.zzz") {
-                        ForEach([15, 30, 60], id: \.self) { minutes in
-                            Button(l10n.format("For %@ minutes", l10n.number(minutes))) {
-                                store.snooze(for: minutes * 60)
-                            }
-                            .accessibilityIdentifier("reminders.snooze.\(minutes)")
-                        }
-                    }
-                    if let until = store.snoozedUntil, until > reminderClock.now {
-                        Button(l10n.text("Cancel snooze"), systemImage: "play.circle") {
-                            store.cancelSnooze()
-                        }
-                        .accessibilityIdentifier("reminders.cancelSnooze")
-                    }
-                    Button(l10n.text("Preview reminder"), systemImage: "sparkle", action: onPreview)
-                        .disabled(store.previewReminder() == nil)
-                    Divider()
-                    Button(l10n.text("Settings"), systemImage: "slider.horizontal.3") { onOpen(.settings) }
-                    Button(l10n.text("Reading progress"), systemImage: "checkmark.circle") { onOpen(.journey) }
-                    Divider()
-                    Button(l10n.text("Quit Sukoon"), action: onQuit)
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .frame(width: 24, height: 24)
+                    Spacer(minLength: 4)
+                    actionButtons(content: content)
                 }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .help(l10n.text("Sukoon actions"))
-                .accessibilityLabel(l10n.text("Sukoon actions"))
-                .accessibilityIdentifier("sukoon.actions")
+                VStack(alignment: .leading, spacing: 10) {
+                    if let content {
+                        PassageReference(library: store.library, content: content)
+                    }
+                    actionButtons(content: content)
+                }
             }
             .font(.system(size: 12))
             .foregroundStyle(.secondary)
         }
-        .padding(24)
-        .frame(width: 360, height: 288)
+        .padding(16)
         .background(palette.canvas)
+    }
+
+    @ViewBuilder
+    private func actionButtons(content: ReminderContent?) -> some View {
+        HStack(spacing: 10) {
+            if let reference = content?.reference {
+                Button {
+                    store.toggleBookmark(surahID: reference.surahID, verseID: reference.verseID)
+                } label: {
+                    Image(systemName: store.isBookmarked(
+                        surahID: reference.surahID,
+                        verseID: reference.verseID
+                    ) ? "heart.fill" : "heart")
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(
+                    store.isBookmarked(surahID: reference.surahID, verseID: reference.verseID)
+                        ? palette.gold
+                        : palette.accent
+                )
+                .help(
+                    l10n.format(
+                        store.isBookmarked(surahID: reference.surahID, verseID: reference.verseID)
+                            ? "Remove %@ from Favourites"
+                            : "Add %@ to Favourites",
+                        l10n.reference(reference),
+                        table: "Workspace"
+                    )
+                )
+                .accessibilityLabel(
+                    l10n.format(
+                        store.isBookmarked(surahID: reference.surahID, verseID: reference.verseID)
+                            ? "Remove %@ from Favourites"
+                            : "Add %@ to Favourites",
+                        l10n.reference(reference),
+                        table: "Workspace"
+                    )
+                )
+                .accessibilityIdentifier("reminders.favourite")
+            }
+
+            Button { onOpen(.quran) } label: {
+                Image(systemName: "book.closed")
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .help(l10n.text("Open the Quran"))
+            .accessibilityLabel(l10n.text("Open the Quran"))
+            .accessibilityIdentifier("workspace.open")
+
+            Menu {
+                Button {
+                    store.settings.remindersEnabled.toggle()
+                } label: {
+                    Label(
+                        l10n.text(store.settings.remindersEnabled ? "Pause reminders" : "Resume reminders"),
+                        systemImage: store.settings.remindersEnabled ? "pause" : "play"
+                    )
+                }
+                Menu(l10n.text("Snooze reminders"), systemImage: "moon.zzz") {
+                    ForEach([15, 30, 60], id: \.self) { minutes in
+                        Button(l10n.format("For %@ minutes", l10n.number(minutes))) {
+                            store.snooze(for: minutes * 60)
+                        }
+                        .accessibilityIdentifier("reminders.snooze.\(minutes)")
+                    }
+                }
+                if let until = store.snoozedUntil, until > reminderClock.now {
+                    Button(l10n.text("Cancel snooze"), systemImage: "play.circle") {
+                        store.cancelSnooze()
+                    }
+                    .accessibilityIdentifier("reminders.cancelSnooze")
+                }
+                Button(l10n.text("Preview reminder"), systemImage: "sparkle", action: onPreview)
+                    .disabled(store.previewReminder() == nil)
+                Divider()
+                Button(l10n.text("Settings"), systemImage: "slider.horizontal.3") { onOpen(.settings) }
+                Button(l10n.text("Reading progress"), systemImage: "checkmark.circle") { onOpen(.journey) }
+                Button(l10n.text("Favourites", table: "Workspace"), systemImage: "heart") { onOpen(.favourites) }
+                Divider()
+                Button(l10n.text("Quit Sukoon"), action: onQuit)
+            } label: {
+                Image(systemName: "ellipsis")
+                    .frame(width: 28, height: 28)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help(l10n.text("Sukoon actions"))
+            .accessibilityLabel(l10n.text("Sukoon actions"))
+            .accessibilityIdentifier("sukoon.actions")
+        }
     }
 }
 

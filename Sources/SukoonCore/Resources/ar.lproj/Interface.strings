@@ -74,7 +74,7 @@
 "The update check failed: %@" = "فشل التحقق من التحديثات: %@";
 "The release page could not be opened." = "تعذّر فتح صفحة الإصدار.";
 "Export reading progress" = "تصدير تقدّم القراءة";
-"Save your read verses, reading position and bookmarks as a JSON backup." = "احفظ الآيات المقروءة وموضع القراءة والعلامات المرجعية في نسخة احتياطية بصيغة JSON.";
+"Save your read verses, reading position and favourites as a JSON backup." = "احفظ الآيات المقروءة وموضع القراءة وآياتك المفضّلة في نسخة احتياطية بصيغة JSON.";
 "Export" = "تصدير";
 "The selected file could not be accessed." = "تعذّر الوصول إلى الملف المختار.";
 "Reading progress could not be exported" = "تعذّر تصدير تقدّم القراءة";
@@ -82,10 +82,11 @@
 "Choose a Sukoon reading-progress JSON backup." = "اختر نسخة احتياطية لتقدّم القراءة في سكون بصيغة JSON.";
 "Import" = "استيراد";
 "Replace reading progress?" = "استبدال تقدّم القراءة؟";
-"This replaces your read verses, reading position and bookmarks with the backup. Your language, appearance and reminder settings will not change." = "يستبدل هذا الإجراء الآيات المقروءة وموضع القراءة والعلامات المرجعية بمحتوى النسخة الاحتياطية. لا تتغيّر إعدادات اللغة أو المظهر أو التذكيرات.";
+"This replaces your read verses, reading position and favourites with the backup. Your language, appearance and reminder settings will not change." = "يستبدل هذا الإجراء الآيات المقروءة وموضع القراءة وآياتك المفضّلة بمحتوى النسخة الاحتياطية. لا تتغيّر إعدادات اللغة أو المظهر أو التذكيرات.";
 "Replace progress" = "استبدال التقدّم";
 "Cancel" = "إلغاء";
 "Reading progress could not be imported" = "تعذّر استيراد تقدّم القراءة";
 "OK" = "موافق";
 "This backup version is not supported." = "إصدار هذه النسخة الاحتياطية غير مدعوم.";
 "The backup contains invalid Quran references or reading positions." = "تحتوي النسخة الاحتياطية على مراجع قرآنية أو مواضع قراءة غير صالحة.";
+"Favourites" = "المفضّلة";

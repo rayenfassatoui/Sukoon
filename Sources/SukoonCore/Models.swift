@@ -121,6 +121,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var mode: ReminderMode
     public var remindersEnabled: Bool
     public var arabicFontSize: Double
+    public var quranFontName: String
+    public var reminderPanelWidth: Double?
+    public var reminderPanelHeight: Double?
     public var autoAdvance: Bool
     public var language: AppLanguage
     public var quranNumberStyle: QuranNumberStyle
@@ -137,6 +140,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         mode: ReminderMode = .mixed,
         remindersEnabled: Bool = true,
         arabicFontSize: Double = 32,
+        quranFontName: String = "GeezaPro",
+        reminderPanelWidth: Double? = nil,
+        reminderPanelHeight: Double? = nil,
         autoAdvance: Bool = true,
         language: AppLanguage = .english,
         quranNumberStyle: QuranNumberStyle = .western
@@ -152,6 +158,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.mode = mode
         self.remindersEnabled = remindersEnabled
         self.arabicFontSize = arabicFontSize
+        self.quranFontName = quranFontName
+        self.reminderPanelWidth = reminderPanelWidth
+        self.reminderPanelHeight = reminderPanelHeight
         self.autoAdvance = autoAdvance
         self.language = language
         self.quranNumberStyle = quranNumberStyle
@@ -161,6 +170,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case theme, accent, intervalSeconds, menuBarAutoCloseSeconds, mode, remindersEnabled
         case arabicFontSize, autoAdvance, language, quranNumberStyle
         case reminderAutoCloseSeconds, quietHoursEnabled, quietHoursStartMinute, quietHoursEndMinute
+        case quranFontName, reminderPanelWidth, reminderPanelHeight
     }
 
     private enum LegacyCodingKeys: String, CodingKey {
@@ -185,6 +195,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         mode = try values.decodeIfPresent(ReminderMode.self, forKey: .mode) ?? .mixed
         remindersEnabled = try values.decodeIfPresent(Bool.self, forKey: .remindersEnabled) ?? true
         arabicFontSize = try values.decodeIfPresent(Double.self, forKey: .arabicFontSize) ?? 32
+        quranFontName = try values.decodeIfPresent(String.self, forKey: .quranFontName) ?? "GeezaPro"
+        reminderPanelWidth = try values.decodeIfPresent(Double.self, forKey: .reminderPanelWidth)
+        reminderPanelHeight = try values.decodeIfPresent(Double.self, forKey: .reminderPanelHeight)
         autoAdvance = try values.decodeIfPresent(Bool.self, forKey: .autoAdvance) ?? true
         language = try values.decodeIfPresent(AppLanguage.self, forKey: .language) ?? .english
         quranNumberStyle = try values.decodeIfPresent(QuranNumberStyle.self, forKey: .quranNumberStyle)
