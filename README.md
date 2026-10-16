@@ -29,29 +29,29 @@
 ## Preview
 
 <p align="center">
-  <img src="assets/screenshots/system-dark-popover.png" alt="Compact dark menu bar popover showing Al-Fatihah 1:1, its reference, and reader and menu controls" width="360">
+  <img src="assets/screenshots/redesign-reader-wide.png" alt="Sukoon's dark reader with native navigation, visible search, and an exact jump to Al-Baqarah 2:255" width="960">
 </p>
 
-The menu bar stays minimal: Arabic text, a surah reference, and access to the reader and settings. Both the popover and reminder panels have independently configurable auto-close delays, defaulting to **10 seconds**.
-
-<p align="center">
-  <img src="assets/screenshots/reader-automatic-and-manual.png" alt="Sukoon's dark Quran reader with a surah list, Al-Fatihah, and separate automatic and chosen-surah reading controls" width="960">
-</p>
+The Quran stays primary. Search and favourites open exact ayahs; compact navigation replaces sidebars when space is limited without losing the reading position.
 
 <details>
-<summary><strong>Arabic interface and Quran completion</strong></summary>
+<summary><strong>Menu bar, Arabic settings, and welcome tour</strong></summary>
 
 <p align="center">
-  <img src="assets/screenshots/automatic-completed-settings.png" alt="Arabic settings with a right-to-left layout and the automatic Quran reading section" width="960">
+  <img src="assets/screenshots/redesign-menu-bar.png" alt="Compact native menu bar popover with Quran text and fully visible reader and favourite actions" width="368">
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/automatic-khatm-arabic.png" alt="Arabic Quran completion celebration with confetti and a Quranic dua" width="650">
+  <img src="assets/screenshots/redesign-settings-arabic.png" alt="Right-to-left Arabic reading settings in the light appearance with a real 54-point font preview" width="820">
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/redesign-onboarding-arabic.png" alt="The two-step Arabic welcome tour with independent language and numeral choices and a Quran font preview" width="560">
 </p>
 
 </details>
 
-<sub>Actual native app captures on macOS 27. Reading progress in these screenshots is demonstration data.</sub>
+<sub>Actual app-local native-view captures on macOS 27 with isolated demonstration preferences, not mockups. WindowServer compositing and title bars are not captured. See the <a href="docs/design-verification.md">before/after gallery, exercised scenarios, and verification limits</a>.</sub>
 
 ## Features
 
@@ -61,12 +61,13 @@ The menu bar stays minimal: Arabic text, a surah reference, and access to the re
 - **Choose your own surah.** Follow a chapter, then continue automatically to the next unread surah without resetting the automatic Quran journey.
 - **Favourites, one tap away.** Use the small heart in the reader, menu bar, or reminder panel. A dedicated Favourites collection opens the exact saved ayah.
 - **English and Arabic.** An immediately switchable interface with right-to-left layout in Arabic and independently selectable Quran digits.
-- **Compact, adjustable appearance.** Content-sized cards, a resizable workspace and reminder panel, System/Light/Dark themes, Jade/Gold/Rose accents, and adjustable Arabic fonts and text size.
+- **Compact, adjustable appearance.** Opaque ivory/stone and dark reading surfaces, restrained accents, a resizable workspace and reminder panel, System/Light/Dark themes, Jade/Gold/Rose choices, and adjustable Arabic fonts and text size.
 - **Offline mushaf fonts.** Six licensed fonts are bundled, alongside compatible Arabic fonts already installed on the Mac.
-- **Uninterrupted completion.** A short success toast confirms a finished surah without opening the main window or asking for confirmation. Full Quran completion retains its celebration and Quranic dua; confetti respects Reduce Motion.
+- **Uninterrupted completion.** A short success toast confirms a finished surah without opening the main window or asking for confirmation. Full Quran completion retains a quiet completion sheet and the complete Quranic dua, without decorative animation.
 - **Native startup control.** An OS-backed **Run at startup** switch with explicit approval/error feedback.
 - **Updates on request.** Check the public GitHub release only when you press **Check for updates**.
 - **Portable reading backup.** Export/import versioned JSON without replacing language, appearance, or reminder preferences.
+- **A short welcome tour.** Two steps with independent language/digit choices, real font and reminder previews, and separate interval/display-duration explanations. Replay it from Settings; existing users keep their preferences and are not forced through it.
 
 ## Getting started
 
@@ -79,7 +80,7 @@ Verified configuration: **macOS 27, Apple Silicon, Xcode 27, Swift 6.4**. Other 
 
 ### Download and install
 
-The features described here are included in **[Sukoon 1.2.0](https://github.com/rayenfassatoui/Sukoon/releases/tag/v1.2.0)**. Download the app ZIP attached to the release; the source-code archives are for building from source.
+Download **[Sukoon 1.3.0](https://github.com/rayenfassatoui/Sukoon/releases/tag/v1.3.0)** for the quiet reading redesign, two-step welcome tour, and reader/layout improvements shown here. Choose the app ZIP attached to the release; the source-code archives are for building from source.
 
 1. Open the [latest GitHub release](https://github.com/rayenfassatoui/Sukoon/releases/latest) and download the **macOS Apple Silicon (`arm64`) app ZIP** under **Assets**, not the automatically generated source-code archives.
 2. Unzip it and move **`Sukoon.app`** into **`/Applications`**.
@@ -97,7 +98,7 @@ swift Tools/Bundle.swift
 open build/Sukoon.app
 ```
 
-The bundler builds an arm64 release executable, packages the offline Quran, licensed fonts, English and Arabic resources, and app icon, then ad-hoc signs the app by default. It also creates **`build/Sukoon-v1.2.0-macos-arm64.zip`** and **`build/SHA256SUMS`**. It finds a full Xcode installation without changing your system-wide `xcode-select` setting. Set `DEVELOPER_DIR` if you need to select a specific Xcode installation.
+The bundler builds an arm64 release executable, packages the offline Quran, licensed fonts, English and Arabic resources, and app icon, then ad-hoc signs the app by default. It also creates **`build/Sukoon-v1.3.0-macos-arm64.zip`** and **`build/SHA256SUMS`**. It finds a full Xcode installation without changing your system-wide `xcode-select` setting. Set `DEVELOPER_DIR` if you need to select a specific Xcode installation.
 
 You can move **`build/Sukoon.app`** into **`/Applications`**. The bundle is self-contained; it does not need the source checkout to run.
 
@@ -117,15 +118,15 @@ The tool signs with hardened runtime and a secure timestamp, waits for Apple's *
 
 ### First use
 
-1. Open Sukoon. Use the menu bar icon to access the compact Quran view.
-2. Open **Settings** from the **…** menu to choose your language, startup behavior, auto-close delays, reminder interval, quiet hours, content, fonts, and appearance.
-3. Open the **Quran** reader to search chapters/ayahs, save favourites, or choose a reading plan.
+1. Open Sukoon. On a new install, the two-step welcome tour offers interface language, independent ayah digits, Quran font/size, and reminder timing with real previews. **Finish** starts reading; **Skip** keeps the choices already made.
+2. Use the menu bar icon for the compact Quran view, or open **Settings** to adjust General, Reading & appearance, Reminders, Reading plans, and Data & updates.
+3. Open the **Quran** reader to search chapters/ayahs, save favourites, or choose a reading plan. **Settings → Welcome tour** replays onboarding without resetting preferences. The tour never enables **Run at startup** or requests OS permissions.
 
 Closing the main window keeps Sukoon running in the menu bar. Use **Quit** to stop the app and its reminders.
 
 ## Reading modes
 
-Choose a mode in **Settings → Reminders → Reminder content**.
+Choose a mode in **Settings → Reading plans → Reminder content**.
 
 | Mode | What appears | Reading-plan behavior |
 | --- | --- | --- |
@@ -137,7 +138,7 @@ Choose a mode in **Settings → Reminders → Reminder content**.
 
 ### Automatic Quran journey
 
-In Settings, use the automatic reading section's **Start / Resume automatic reading** action. In Arabic, this section is **الختمة التلقائية**.
+In **Settings → Reading plans**, use the automatic reading section's **Start / Resume automatic reading** action. In Arabic, this section is **الختمة التلقائية**.
 
 - Starts at **Al-Fatihah 1:1**, then continues through every surah in order.
 - Saves its next ayah independently of your chosen-surah selection and favourites.
@@ -147,7 +148,7 @@ In Settings, use the automatic reading section's **Start / Resume automatic read
 
 ### Your chosen surah
 
-Open a chapter in the reader and select **Use for chosen-surah reminders**, or use **Use chosen surah** in Settings.
+Open a chapter in the reader and use **Reminder plan → Use for chosen-surah reminders**. **Choose in reader** in **Settings → Reading plans** opens the reader to choose a chapter.
 
 This mode follows the next globally unmarked ayah in that chapter. Reading marks are shared across the app, but the **automatic Quran position is separate**: choosing a surah or marking verses in the reader does not reset or skip the automatic sequence.
 
@@ -170,23 +171,23 @@ Existing bookmarks become favourites without losing saved references. The persis
 
 ## Languages
 
-Switch between **English** and **العربية** in **Settings → Language**. Your choice is saved independently of the macOS language.
+Switch between **English** and **العربية** in **Settings → General → Language**. Your choice is saved independently of the macOS language.
 
 Arabic uses a right-to-left workspace, localized controls, help text, menus, and completion messages. Quran ayahs remain Arabic in both interface languages. Changing language preserves reading progress, favourites, and reminder preferences.
 
-Choose **Western (123)** or **Arabic (١٢٣)** digits in **Settings → Language → Ayah numbers**, independently of the interface language. This controls surah and ayah identifiers, favourites, and Quran references in the reader, journey, menu bar, and reminder panels. Other interface values still follow the app language.
+Choose **Western (123)** or **Arabic (١٢٣)** digits in **Settings → General → Language → Ayah numbers**, independently of the interface language. This controls surah and ayah identifiers, favourites, and Quran references in the reader, journey, menu bar, and reminder panels. Other interface values still follow the app language.
 
 On upgrade, the initial digit choice follows the previously saved language. Both choices are then saved separately; changing either preserves Quran progress and favourites.
 
 ## Appearance and reminder behavior
 
 - **System** follows the Mac's appearance; switching back to it clears a previous Light or Dark override.
-- Resize the main window by dragging its edges; its frame is saved. Narrow layouts replace the workspace sidebar and reader chapter list with compact navigation controls.
+- Resize the main window by dragging its edges; its frame is saved. The default content size is **900 × 680 pt** and the minimum is **680 × 520 pt**, large enough for compact navigation, search, and reading controls. Larger saved sizes are retained; older undersized frames are clamped to this content minimum. Narrow layouts replace the workspace sidebar and reader chapter list with compact navigation, while preserving the selected ayah and scrolled passage. This main-window minimum does not change popover or reminder-panel limits.
 - Reminder panels initially fit the ayah and selected font, with scrolling for content exceeding the available height. Drag their edges to set a custom width and height; that size is saved for later reminders. **Settings → Reminders → Reminder size → Fit to verse** restores automatic sizing.
-- **Settings → Reading → Quran font** changes ayah text throughout the app. Choose among bundled mushaf fonts and compatible installed Arabic faces; **Refresh installed fonts** discovers fonts added to macOS while Sukoon is running. An unavailable saved font produces a visible warning and uses Geeza Pro.
-- Menu bar auto-close: **10 seconds** by default. Choose **10, 15, or 20 seconds** in **Settings → Menu bar → Auto-close after**. Your choice is saved and applies the next time you open the popover.
+- **Settings → Reading & appearance → Quran font** changes ayah text throughout the app. Choose among bundled mushaf fonts and compatible installed Arabic faces; **Refresh installed fonts** discovers fonts added to macOS while Sukoon is running. An unavailable saved font produces a visible warning and uses Geeza Pro.
+- Menu bar auto-close: **10 seconds** by default. Choose **10, 15, or 20 seconds** in **Settings → General → Menu bar → Auto-close after**. Your choice is saved and applies the next time you open the popover.
 - Reminder intervals: **30 seconds**, or **1, 2, 5, 10, 15, 30, 60, or 120 minutes**. The default remains **2 minutes**; existing saved intervals are preserved.
-- Reminder/preview auto-close: **10 seconds** by default; choose **10, 15, 20, 30, or 60 seconds** in **Settings → Reminders → Reminder auto-close**. Scheduled panels never stack or replace a still-visible panel; intentional previews replace the current panel without advancing progress.
+- **Display duration** is how long each reminder/preview remains visible, not the time between reminders. It defaults to **10 seconds**; choose **10, 15, 20, 30, or 60 seconds** in **Settings → Reminders → Display duration**. Scheduled panels never stack or replace a still-visible panel; intentional previews replace the current panel without advancing progress.
 - Close a panel early with its close control or **Escape**. Longer ayahs can be scrolled, viewed in a larger reminder panel, or opened in the full reader.
 - Reminders suspend while the Mac is asleep, locked, or the screen or user session is inactive. Resuming schedules one fresh interval—there is no catch-up burst.
 - **Quiet hours:** enable in Settings and choose local start/end times. Overnight windows are supported; the start is inclusive and the end exclusive. Equal times mean no quiet interval. Suppressed reminders never advance progress or produce a catch-up burst.
@@ -194,9 +195,9 @@ On upgrade, the initial digit choice follows the previously saved language. Both
 
 ## Startup, updates, and backup
 
-- **Settings → Startup → Run at startup** uses macOS login-item registration, not a separately saved app Boolean. If approval is needed, use **Open Login Items** and approve Sukoon. Remove any older manually added login-item entry in System Settings before relying on the in-app switch.
-- **Settings → Updates → Check for updates** queries the public GitHub latest-release API, compares it with the actual installed bundle version, and offers its validated release page when newer. It never downloads or runs an updater automatically. Errors remain visible; normal Quran use needs no network.
-- **Settings → Reading backup** exports read marks, the automatic cursor, chosen surah, and all favourites to versioned JSON. Import explicitly confirms replacement, validates all Quran references/positions before changing anything, and preserves other settings. Cancelled or invalid imports leave existing progress unchanged.
+- **Settings → General → Startup → Run at startup** uses macOS login-item registration, not a separately saved app Boolean. If approval is needed, use **Open Login Items** and approve Sukoon. Remove any older manually added login-item entry in System Settings before relying on the in-app switch.
+- **Settings → Data & updates → Updates → Check for updates** queries the public GitHub latest-release API, compares it with the actual installed bundle version, and offers its validated release page when newer. It never downloads or runs an updater automatically. Errors remain visible; normal Quran use needs no network.
+- **Settings → Data & updates → Reading backup** exports read marks, the automatic cursor, chosen surah, and all favourites to versioned JSON. Import explicitly confirms replacement, validates all Quran references/positions before changing anything, and preserves other settings. Cancelled or invalid imports leave existing progress unchanged.
 - Existing single-bookmark saved state migrates into Favourites without resetting the reader or either reading plan.
 
 ## Privacy and saved state
@@ -208,6 +209,7 @@ Preferences and reading state are stored locally in `UserDefaults` under the app
 - Interface language, Quran digit style, appearance, Quran font and text size, window/panel sizing, reminder preferences, quiet hours, and a snooze deadline.
 - Automatic Quran position and chosen surah.
 - Unique ayah marks and favourites.
+- Welcome-tour completion, kept separately from reading state and the compatible backup format.
 
 **Reset Quran progress** requires confirmation. It clears reading marks, both reading plans, and all favourites, while preserving language, Quran digit style, appearance, fonts, sizing, and reminder preferences. Launch-at-login registration is managed by macOS, not the saved reading state.
 
@@ -229,11 +231,13 @@ swift Tools/Bundle.swift --debug
 open build/Sukoon.app
 ```
 
+For the redesign's native smoke checks, before/after captures, and unverified accessibility conditions, see [Design verification](docs/design-verification.md).
+
 ### Project layout
 
 | Location | Responsibility |
 | --- | --- |
-| [`Sources/Sukoon`](Sources/Sukoon) | Native lifecycle, menu bar, floating reminders, workspace, reader, settings, journey, and celebrations |
+| [`Sources/Sukoon`](Sources/Sukoon) | Native lifecycle, menu bar, floating reminders, workspace, reader, settings, onboarding, journey, and completion feedback |
 | [`Sources/SukoonCore`](Sources/SukoonCore) | Quran models and data, localization, persisted state, reading progress, and reminder scheduling |
 | [`Sources/SukoonCore/Resources`](Sources/SukoonCore/Resources) | Pinned Quran data, source notices, license, and English/Arabic string catalogs |
 | [`Sources/Sukoon/Resources/Fonts`](Sources/Sukoon/Resources/Fonts) | Unmodified offline Arabic font binaries, their licenses, source URLs, and checksums |

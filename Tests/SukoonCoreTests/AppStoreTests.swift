@@ -4,6 +4,56 @@ import XCTest
 
 final class AppStoreTests: XCTestCase {
     @MainActor
+    func testOnboardingResumesUntilFinishedWithoutResettingChoices() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let library = twoSurahLibrary()
+        let firstLaunch = AppStore(library: library, defaults: defaults)
+        XCTAssertTrue(firstLaunch.needsOnboarding)
+        firstLaunch.settings.language = .arabic
+        firstLaunch.settings.quranNumberStyle = .western
+        firstLaunch.settings.arabicFontSize = 48
+        defaults.set(true, forKey: "hasOpenedSukoon")
+
+        let interrupted = AppStore(library: library, defaults: defaults)
+        XCTAssertTrue(interrupted.needsOnboarding)
+        XCTAssertEqual(interrupted.settings.language, .arabic)
+        XCTAssertEqual(interrupted.settings.quranNumberStyle, .western)
+        XCTAssertEqual(interrupted.settings.arabicFontSize, 48)
+        interrupted.markRead(surahID: 1, verseID: 1)
+        interrupted.toggleBookmark(surahID: 1, verseID: 2)
+        interrupted.completeOnboarding()
+
+        let completed = AppStore(library: library, defaults: defaults)
+        XCTAssertFalse(completed.needsOnboarding)
+        XCTAssertEqual(completed.settings, interrupted.settings)
+        XCTAssertTrue(completed.isRead(surahID: 1, verseID: 1))
+        XCTAssertTrue(completed.isBookmarked(surahID: 1, verseID: 2))
+    }
+
+    @MainActor
+    func testExistingInstallationsDoNotReceiveOnboarding() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: "hasOpenedSukoon")
+        XCTAssertFalse(AppStore(library: twoSurahLibrary(), defaults: defaults).needsOnboarding)
+
+        let (legacyDefaults, legacySuite) = makeDefaults()
+        defer { legacyDefaults.removePersistentDomain(forName: legacySuite) }
+        let legacyState = Data("""
+            {"settings":{"language":"ar"},"readVerses":[{"surahID":1,"verseID":1}],
+             "bookmarks":[{"surahID":1,"verseID":2}],"automaticVerseOffset":1}
+            """.utf8)
+        legacyDefaults.set(legacyState, forKey: "Sukoon.AppStore.state.v1")
+        let upgraded = AppStore(library: twoSurahLibrary(), defaults: legacyDefaults)
+        XCTAssertFalse(upgraded.needsOnboarding)
+        XCTAssertEqual(upgraded.settings.language, .arabic)
+        XCTAssertTrue(upgraded.isRead(surahID: 1, verseID: 1))
+        XCTAssertTrue(upgraded.isBookmarked(surahID: 1, verseID: 2))
+        XCTAssertEqual(upgraded.automaticVerseOffset, 1)
+    }
+
+    @MainActor
     func testManualAcknowledgementRepeatsUnconfirmedVerseAndPreviewConsumesNothing() throws {
         let (defaults, suite) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }

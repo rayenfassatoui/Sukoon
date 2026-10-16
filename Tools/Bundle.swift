@@ -92,8 +92,8 @@ let options = BundleOptions(arguments: arguments)
 let manager = FileManager.default
 let root = URL(fileURLWithPath: manager.currentDirectoryPath, isDirectory: true)
 let configuration = options.debug ? "debug" : "release"
-let version = "1.2.0"
-let buildNumber = "3"
+let version = "1.3.0"
+let buildNumber = "4"
 var buildEnvironment = ProcessInfo.processInfo.environment
 
 func run(_ executable: String, _ arguments: [String], capture: Bool = false) throws -> String {

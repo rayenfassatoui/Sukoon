@@ -14,7 +14,19 @@ struct MenuBarView: View {
         let content = store.lastReminder ?? store.previewReminder()
         let automaticComplete = store.settings.mode == .automatic && store.isAutomaticComplete
         let suspension = ReminderSuspensionStatus(store: store, now: reminderClock.now)
-        VStack(spacing: 18) {
+        VStack(spacing: 12) {
+            HStack {
+                Text(l10n.text("Sukoon"))
+                    .font(.headline)
+                Spacer()
+                Button { onOpen(.settings) } label: {
+                    Image(systemName: "gearshape")
+                        .frame(width: 24, height: 24)
+                }
+                .buttonStyle(.borderless)
+                .help(l10n.text("Settings"))
+                .accessibilityLabel(l10n.text("Settings"))
+            }
             if let content {
                 ScrollView {
                     ArabicText(content.arabic, size: store.settings.arabicFontSize)
@@ -23,12 +35,13 @@ struct MenuBarView: View {
                 }
                 .defaultScrollAnchor(.center, for: .alignment)
                 .scrollBounceBehavior(.basedOnSize)
-                .frame(maxHeight: 220)
+                .frame(maxHeight: 240)
+                .fixedSize(horizontal: false, vertical: true)
                 .id(content.id)
             } else {
                 Button { onOpen(automaticComplete ? .journey : .quran) } label: {
                     Text(l10n.text(automaticComplete ? "Automatic Quran complete" : "Choose a surah"))
-                        .font(.custom("Geeza Pro", size: 28))
+                        .font(.headline)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.plain)
@@ -54,10 +67,13 @@ struct MenuBarView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
+            Divider().overlay(palette.hairline)
+
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 14) {
                     if let content {
                         PassageReference(library: store.library, content: content)
+                            .fixedSize(horizontal: true, vertical: false)
                     }
                     Spacer(minLength: 4)
                     actionButtons(content: content)
@@ -72,6 +88,7 @@ struct MenuBarView: View {
             .font(.system(size: 12))
             .foregroundStyle(.secondary)
         }
+        .frame(width: 336)
         .padding(16)
         .background(palette.canvas)
     }
@@ -89,11 +106,10 @@ struct MenuBarView: View {
                     ) ? "heart.fill" : "heart")
                         .frame(width: 28, height: 28)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(
-                    store.isBookmarked(surahID: reference.surahID, verseID: reference.verseID)
-                        ? palette.gold
-                        : palette.accent
+                .buttonStyle(.borderless)
+                .foregroundStyle(palette.accent)
+                .accessibilityAddTraits(
+                    store.isBookmarked(surahID: reference.surahID, verseID: reference.verseID) ? .isSelected : []
                 )
                 .help(
                     l10n.format(
@@ -117,10 +133,9 @@ struct MenuBarView: View {
             }
 
             Button { onOpen(.quran) } label: {
-                Image(systemName: "book.closed")
-                    .frame(width: 28, height: 28)
+                Label(l10n.text("Open Quran", table: "Preferences"), systemImage: "book.closed")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderless)
             .help(l10n.text("Open the Quran"))
             .accessibilityLabel(l10n.text("Open the Quran"))
             .accessibilityIdentifier("workspace.open")
@@ -148,7 +163,7 @@ struct MenuBarView: View {
                     }
                     .accessibilityIdentifier("reminders.cancelSnooze")
                 }
-                Button(l10n.text("Preview reminder"), systemImage: "sparkle", action: onPreview)
+                Button(l10n.text("Preview reminder"), systemImage: "bell", action: onPreview)
                     .disabled(store.previewReminder() == nil)
                 Divider()
                 Button(l10n.text("Settings"), systemImage: "slider.horizontal.3") { onOpen(.settings) }
@@ -167,6 +182,7 @@ struct MenuBarView: View {
             .accessibilityLabel(l10n.text("Sukoon actions"))
             .accessibilityIdentifier("sukoon.actions")
         }
+        .fixedSize(horizontal: true, vertical: false)
     }
 }
 

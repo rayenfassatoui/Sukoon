@@ -94,3 +94,10 @@
 "Save an ayah from the reader to keep it here." = "احفظ آية من القارئ لتبقى هنا.";
 "Open %@ in the Quran" = "افتح %@ في القرآن";
 "Resize reminder" = "تغيير حجم التذكير";
+"Find in Quran" = "البحث في القرآن";
+"Search results" = "نتائج البحث";
+"%@ surahs · %@ ayahs" = "%@ سورة · %@ آية";
+"Try a surah name, Arabic words, or a reference such as %@." = "جرّب اسم سورة أو كلمات عربية أو مرجعًا مثل %@.";
+"Surahs" = "السور";
+"Reminder plan" = "خطة التذكير";
+"Mark %@ as read" = "تعليم %@ كمقروءة";

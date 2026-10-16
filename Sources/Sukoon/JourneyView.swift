@@ -3,7 +3,6 @@ import SukoonCore
 
 struct JourneyView: View {
     @Environment(\.sukoonPalette) private var palette
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.sukoonLocalization) private var l10n
     let store: AppStore
     let navigation: AppNavigation
@@ -24,10 +23,9 @@ struct JourneyView: View {
         let completed = completedSurahs
         let inProgress = inProgressSurahs
         ScrollView {
-            VStack(alignment: .leading, spacing: 25) {
+            VStack(alignment: .leading, spacing: 20) {
                 SukoonSectionTitle(
                     l10n.text("Your journey", table: "Workspace"),
-                    eyebrow: l10n.text("Quran progress", table: "Workspace"),
                     detail: l10n.text(
                         "Every marked verse is kept here, while automatic Quran reading also keeps its own sequential position.",
                         table: "Workspace"
@@ -36,35 +34,39 @@ struct JourneyView: View {
 
                 overallProgress(completedCount: completed.count)
 
+                VStack(alignment: .leading, spacing: 16) {
+                    automaticPlan
+                    Divider()
+                    if let chosen = store.activeSurah {
+                        currentPlan(chosen)
+                    } else {
+                        choosePlan
+                    }
+                }
+                .sukoonCard()
+
                 deliveryExplanation
 
-                automaticPlan
-
-                if let chosen = store.activeSurah {
-                    currentPlan(chosen)
-                } else {
-                    choosePlan
-                }
-
                 if inProgress.isEmpty && completed.isEmpty {
-                    ContentUnavailableView {
+                    VStack(alignment: .leading, spacing: 8) {
                         Label(l10n.text("A clear beginning", table: "Workspace"), systemImage: "book.closed")
-                    } description: {
+                            .font(.headline)
                         Text(
                             l10n.text(
                                 "No verses are marked yet. Open a surah and begin at your own pace.",
                                 table: "Workspace"
                             )
                         )
-                    } actions: {
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                         Button(l10n.text("Choose a surah", table: "Workspace")) {
                             navigation.section = .quran
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.bordered)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 34)
-                    .sukoonCard(padding: 18)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .sukoonCard()
                 } else {
                     if !inProgress.isEmpty {
                         journeyGroup(
@@ -85,44 +87,23 @@ struct JourneyView: View {
                     }
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 24)
-            .padding(.bottom, 28)
-            .frame(maxWidth: 1040)
+            .padding(20)
+            .frame(maxWidth: 760, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
-        .background(colorScheme == .dark ? Color(red: 0.055, green: 0.065, blue: 0.06) : palette.canvas)
+        .background(palette.canvas)
     }
 
-    private var progressRing: some View {
-        ZStack {
-            Circle()
-                .stroke(palette.hairline, lineWidth: 11)
-            Circle()
-                .trim(from: 0, to: CGFloat(min(max(store.completionFraction, 0), 1)))
-                .stroke(
-                    palette.accent.gradient,
-                    style: StrokeStyle(lineWidth: 11, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-            VStack(spacing: 1) {
+    private func overallProgress(completedCount: Int) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(l10n.text("The whole Quran", table: "Workspace"))
+                    .font(.headline)
+                Spacer(minLength: 0)
                 Text(l10n.percent(store.completionFraction))
-                    .font(.title2.monospacedDigit().weight(.bold))
-                Text(l10n.text("marked", table: "Workspace"))
-                    .font(.caption)
+                    .font(.callout.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
-        }
-        .frame(width: 128, height: 128)
-        .accessibilityElement()
-        .accessibilityLabel(l10n.text("Overall Quran progress", table: "Workspace"))
-        .accessibilityValue(l10n.percent(store.completionFraction))
-    }
-
-    private func progressDetails(completedCount: Int) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(l10n.text("The whole Quran", table: "Workspace"))
-                .font(.title2.weight(.semibold))
             Text(
                 l10n.format(
                     "%@ of %@ verses marked",
@@ -131,8 +112,9 @@ struct JourneyView: View {
                     table: "Workspace"
                 )
             )
-                .font(.callout)
-                .foregroundStyle(.secondary)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            SukoonProgress(value: store.completionFraction)
             Text(
                 l10n.format(
                     "%@ of %@ surahs complete",
@@ -141,76 +123,41 @@ struct JourneyView: View {
                     table: "Workspace"
                 )
             )
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            SukoonProgress(value: store.completionFraction)
-                .frame(maxWidth: 440)
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
-    }
-
-    private func overallProgress(completedCount: Int) -> some View {
-        VStack(alignment: .leading, spacing: 19) {
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .center, spacing: 28) {
-                    progressRing
-                    progressDetails(completedCount: completedCount)
-                }
-                VStack(alignment: .leading, spacing: 16) {
-                    progressRing
-                    progressDetails(completedCount: completedCount)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .sukoonCard(padding: 18)
+        .sukoonCard()
     }
 
     private var deliveryExplanation: some View {
-        HStack(alignment: .top, spacing: 14) {
-            Image(systemName: "checkmark.message")
-                .font(.title3)
-                .foregroundStyle(palette.accent)
-            VStack(alignment: .leading, spacing: 6) {
-                Text(l10n.text("What a marked verse means", table: "Workspace"))
-                    .font(.headline)
-                Text(
-                    l10n.text(
-                        "A manual mark confirms your reading. A real chosen-surah or automatic Quran delivery can also mark its verse when delivered progress is on; previews, random ayahs, and duas never add progress. Automatic position advances separately and only for its matching reminder.",
-                        table: "Workspace"
-                    )
+        DisclosureGroup {
+            Text(
+                l10n.text(
+                    "A manual mark confirms your reading. A real chosen-surah or automatic Quran delivery can also mark its verse when delivered progress is on; previews, random ayahs, and duas never add progress. Automatic position advances separately and only for its matching reminder.",
+                    table: "Workspace"
                 )
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(18)
-        .background(palette.accentSoft.opacity(0.16), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(palette.accent.opacity(0.16), lineWidth: 1)
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, 6)
+        } label: {
+            Text(l10n.text("What a marked verse means", table: "Workspace"))
+                .font(.callout.weight(.medium))
         }
     }
 
     private var automaticPlan: some View {
-        VStack(alignment: .leading, spacing: 15) {
-            VStack(alignment: .leading, spacing: 8) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(l10n.text("Automatic Quran", table: "Workspace"))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Text(
-                        l10n.text(
-                            store.isAutomaticComplete ? "Full Quran sequence complete" : "Full-Quran saved position",
-                            table: "Workspace"
-                        )
-                    )
-                    .font(.title2.weight(.semibold))
-                }
-                Image(systemName: store.isAutomaticComplete ? "checkmark.seal.fill" : "books.vertical.fill")
-                    .font(.title2)
-                    .foregroundStyle(store.isAutomaticComplete ? palette.success : palette.accent)
-            }
+        VStack(alignment: .leading, spacing: 8) {
+            Label(l10n.text("Automatic Quran", table: "Workspace"), systemImage: "books.vertical")
+                .font(.headline)
+            Text(
+                l10n.text(
+                    store.isAutomaticComplete ? "Full Quran sequence complete" : "Full-Quran saved position",
+                    table: "Workspace"
+                )
+            )
+            .font(.callout)
 
             Text(
                 l10n.format(
@@ -222,13 +169,8 @@ struct JourneyView: View {
             )
             .font(.callout)
             .foregroundStyle(.secondary)
-            SukoonProgress(
-                value: store.library.verseCount == 0
-                    ? 0
-                    : Double(store.automaticVerseOffset) / Double(store.library.verseCount)
-            )
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
                 if let reference = store.automaticNextReference,
                    let surah = store.automaticSurah {
                     Text(
@@ -244,9 +186,10 @@ struct JourneyView: View {
                     Button(l10n.text("Resume automatic reading", table: "Workspace")) {
                         store.startAutomaticReading()
                         navigation.readerSurahID = reference.surahID
+                        navigation.readerReference = reference
                         navigation.section = .quran
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bordered)
                 } else {
                     Label(
                         l10n.text("Automatic Quran complete"),
@@ -257,26 +200,16 @@ struct JourneyView: View {
                 }
             }
         }
-        .sukoonCard(padding: 18)
     }
 
     private func currentPlan(_ surah: Surah) -> some View {
         let count = store.readCount(in: surah.id)
         let nextUnread = store.nextUnreadVerse(in: surah.id)
-        return VStack(alignment: .leading, spacing: 15) {
-            VStack(alignment: .leading, spacing: 8) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(l10n.text("Chosen-surah reading", table: "Workspace"))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Text(l10n.surahName(surah))
-                        .font(.title2.weight(.semibold))
-                }
-                Text(l10n.isArabic ? surah.transliteration : surah.name)
-                    .font(l10n.isArabic ? .callout : .custom("Geeza Pro", size: 27).weight(.bold))
-                    .environment(\.layoutDirection, l10n.isArabic ? .leftToRight : .rightToLeft)
-                    .foregroundStyle(palette.accent)
-            }
+        return VStack(alignment: .leading, spacing: 8) {
+            Label(l10n.text("Chosen-surah reading", table: "Workspace"), systemImage: "bookmark")
+                .font(.headline)
+            Text(l10n.surahName(surah))
+                .font(.callout.weight(.medium))
             Text(
                 l10n.format(
                     "%@ of %@ verses marked",
@@ -287,8 +220,7 @@ struct JourneyView: View {
             )
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            SukoonProgress(value: surah.totalVerses == 0 ? 0 : Double(count) / Double(surah.totalVerses))
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
                 if let next = nextUnread {
                     Text(
                         l10n.format(
@@ -308,19 +240,18 @@ struct JourneyView: View {
                     l10n.text(nextUnread == nil ? "Open Quran" : "Continue reading", table: "Workspace")
                 ) {
                     navigation.readerSurahID = surah.id
+                    navigation.readerReference = nextUnread.map {
+                        VerseReference(surahID: surah.id, verseID: $0.id)
+                    }
                     navigation.section = .quran
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
             }
         }
-        .sukoonCard(padding: 18)
     }
 
     private var choosePlan: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Image(systemName: "bookmark.circle")
-                .font(.system(size: 35))
-                .foregroundStyle(palette.accent)
+        VStack(alignment: .leading, spacing: 8) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(l10n.text("Choose a surah", table: "Workspace"))
                     .font(.headline)
@@ -336,9 +267,8 @@ struct JourneyView: View {
             Button(l10n.text("Open Quran", table: "Workspace")) {
                 navigation.section = .quran
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.bordered)
         }
-        .sukoonCard(padding: 18)
     }
 
     @ViewBuilder
@@ -348,33 +278,44 @@ struct JourneyView: View {
         surahs: [Surah],
         completed: Bool
     ) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
+        let lastSurahID = surahs.last?.id
+        VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.title3.weight(.semibold))
+                    .font(.headline)
                 Text(detail)
-                    .font(.callout)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 225), spacing: 12)], spacing: 12) {
+            LazyVStack(spacing: 0) {
                 ForEach(surahs) { surah in
-                    JourneySurahCard(
-                        surah: surah,
-                        readCount: store.readCount(in: surah.id),
-                        completed: completed,
-                        action: {
-                            navigation.readerSurahID = surah.id
-                            navigation.section = .quran
+                    VStack(spacing: 0) {
+                        JourneySurahRow(
+                            surah: surah,
+                            readCount: store.readCount(in: surah.id),
+                            completed: completed,
+                            action: {
+                                navigation.readerSurahID = surah.id
+                                navigation.readerReference = store.nextUnreadVerse(in: surah.id).map {
+                                    VerseReference(surahID: surah.id, verseID: $0.id)
+                                }
+                                navigation.section = .quran
+                            }
+                        )
+                        if surah.id != lastSurahID {
+                            Divider()
+                                .padding(.horizontal, 12)
                         }
-                    )
+                    }
                 }
             }
+            .sukoonCard(padding: 0)
         }
     }
 }
 
-private struct JourneySurahCard: View {
+private struct JourneySurahRow: View {
     @Environment(\.sukoonPalette) private var palette
     @Environment(\.sukoonLocalization) private var l10n
     let surah: Surah
@@ -384,22 +325,20 @@ private struct JourneySurahCard: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 11) {
-                HStack {
-                    Text(l10n.quranNumber(surah.id))
-                        .font(.caption.monospacedDigit().weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    if completed {
-                        Image(systemName: "checkmark.seal.fill")
-                            .foregroundStyle(palette.success)
-                    }
+            HStack(spacing: 12) {
+                Text(l10n.quranNumber(surah.id))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: 26, alignment: .trailing)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(l10n.surahName(surah))
+                        .font(.body.weight(.medium))
                     Text(l10n.isArabic ? surah.transliteration : surah.name)
-                        .font(l10n.isArabic ? .caption : .custom("Geeza Pro", size: 19))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                         .environment(\.layoutDirection, l10n.isArabic ? .leftToRight : .rightToLeft)
                 }
-                Text(l10n.surahName(surah))
-                    .font(.headline)
+                Spacer(minLength: 0)
                 Text(
                     completed
                         ? l10n.format(
@@ -416,17 +355,16 @@ private struct JourneySurahCard: View {
                 )
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                SukoonProgress(value: surah.totalVerses == 0 ? 0 : Double(readCount) / Double(surah.totalVerses))
+                Image(systemName: completed ? "checkmark.circle" : "chevron.forward")
+                    .font(.caption)
+                    .foregroundStyle(completed ? palette.success : .secondary)
+                    .accessibilityHidden(true)
             }
-            .padding(16)
+            .padding(12)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(palette.hairline, lineWidth: 1)
-        }
+        .buttonStyle(.borderless)
+        .foregroundStyle(palette.primary)
         .help(
             l10n.format(
                 "Open Surah %@",

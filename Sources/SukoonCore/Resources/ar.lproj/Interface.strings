@@ -90,3 +90,5 @@
 "This backup version is not supported." = "إصدار هذه النسخة الاحتياطية غير مدعوم.";
 "The backup contains invalid Quran references or reading positions." = "تحتوي النسخة الاحتياطية على مراجع قرآنية أو مواضع قراءة غير صالحة.";
 "Favourites" = "المفضّلة";
+"View" = "عرض";
+"Show menu bar" = "إظهار قائمة شريط القوائم";

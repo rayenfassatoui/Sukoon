@@ -1,0 +1,195 @@
+{
+  "method": "Native NSWindow properties captured inside isolated running app copies; not WindowServer screenshots.",
+  "captures": [
+    {
+      "sourceCapture": "after-below-minimum-request",
+      "windows": [
+        {
+          "identifier": "sukoon.workspace",
+          "title": "Sukoon",
+          "width": 680,
+          "height": 520,
+          "minimumContentWidth": 680,
+          "minimumContentHeight": 520,
+          "minimumFrameWidth": 680,
+          "minimumFrameHeight": 552,
+          "key": true,
+          "main": true,
+          "active": true,
+          "frontmost": "app.sukoon.design-smoke-after",
+          "nonactivatingPanel": 0
+        }
+      ]
+    },
+    {
+      "sourceCapture": "persistence-after-relaunch",
+      "windows": [
+        {
+          "identifier": "sukoon.workspace",
+          "title": "Sukoon",
+          "width": 920,
+          "height": 700,
+          "minimumContentWidth": 680,
+          "minimumContentHeight": 520,
+          "minimumFrameWidth": 680,
+          "minimumFrameHeight": 552,
+          "key": true,
+          "main": true,
+          "active": true,
+          "frontmost": "app.sukoon.design-smoke-after",
+          "nonactivatingPanel": 0
+        }
+      ]
+    },
+    {
+      "sourceCapture": "release-restored-workspace",
+      "windows": [
+        {
+          "identifier": "sukoon.workspace",
+          "title": "Sukoon",
+          "width": 820,
+          "height": 640,
+          "minimumContentWidth": 680,
+          "minimumContentHeight": 520,
+          "minimumFrameWidth": 680,
+          "minimumFrameHeight": 552,
+          "key": true,
+          "main": true,
+          "active": true,
+          "frontmost": "app.sukoon.design-smoke-after",
+          "nonactivatingPanel": 0
+        }
+      ]
+    },
+    {
+      "sourceCapture": "scheduled-final-ayah",
+      "windows": [
+        {
+          "identifier": "",
+          "title": "",
+          "width": 380,
+          "height": 223,
+          "minimumContentWidth": 0,
+          "minimumContentHeight": 0,
+          "minimumFrameWidth": 0,
+          "minimumFrameHeight": 0,
+          "key": false,
+          "main": false,
+          "active": false,
+          "frontmost": "app.sukoon.design-smoke-before",
+          "nonactivatingPanel": 1
+        }
+      ]
+    },
+    {
+      "sourceCapture": "after-surah-success-no-focus",
+      "windows": [
+        {
+          "identifier": "",
+          "title": "",
+          "width": 340,
+          "height": 63,
+          "minimumContentWidth": 0,
+          "minimumContentHeight": 0,
+          "minimumFrameWidth": 0,
+          "minimumFrameHeight": 0,
+          "key": false,
+          "main": false,
+          "active": false,
+          "frontmost": "app.sukoon.design-smoke-before",
+          "nonactivatingPanel": 1
+        }
+      ]
+    },
+    {
+      "sourceCapture": "after-surah-continuation-no-focus",
+      "windows": [
+        {
+          "identifier": "",
+          "title": "",
+          "width": 380,
+          "height": 223,
+          "minimumContentWidth": 0,
+          "minimumContentHeight": 0,
+          "minimumFrameWidth": 0,
+          "minimumFrameHeight": 0,
+          "key": false,
+          "main": false,
+          "active": false,
+          "frontmost": "app.sukoon.design-smoke-before",
+          "nonactivatingPanel": 1
+        }
+      ]
+    },
+    {
+      "sourceCapture": "release-panel-restored",
+      "windows": [
+        {
+          "identifier": "sukoon.workspace",
+          "title": "سكون",
+          "width": 680,
+          "height": 520,
+          "minimumContentWidth": 680,
+          "minimumContentHeight": 520,
+          "minimumFrameWidth": 680,
+          "minimumFrameHeight": 552,
+          "key": true,
+          "main": true,
+          "active": true,
+          "frontmost": "app.sukoon.design-smoke-after",
+          "nonactivatingPanel": 0
+        },
+        {
+          "identifier": "",
+          "title": "",
+          "width": 480,
+          "height": 320,
+          "minimumContentWidth": 0,
+          "minimumContentHeight": 0,
+          "minimumFrameWidth": 0,
+          "minimumFrameHeight": 0,
+          "key": false,
+          "main": false,
+          "active": true,
+          "frontmost": "app.sukoon.design-smoke-after",
+          "nonactivatingPanel": 1
+        }
+      ]
+    },
+    {
+      "sourceCapture": "release-panel-fit-reset",
+      "windows": [
+        {
+          "identifier": "sukoon.workspace",
+          "title": "سكون",
+          "width": 680,
+          "height": 520,
+          "minimumContentWidth": 680,
+          "minimumContentHeight": 520,
+          "minimumFrameWidth": 680,
+          "minimumFrameHeight": 552,
+          "key": true,
+          "main": true,
+          "active": true,
+          "frontmost": "app.sukoon.design-smoke-after",
+          "nonactivatingPanel": 0
+        },
+        {
+          "identifier": "",
+          "title": "",
+          "width": 380,
+          "height": 277,
+          "minimumContentWidth": 0,
+          "minimumContentHeight": 0,
+          "minimumFrameWidth": 0,
+          "minimumFrameHeight": 0,
+          "key": false,
+          "main": false,
+          "active": true,
+          "frontmost": "app.sukoon.design-smoke-after",
+          "nonactivatingPanel": 1
+        }
+      ]
+    }
+  ]
+}

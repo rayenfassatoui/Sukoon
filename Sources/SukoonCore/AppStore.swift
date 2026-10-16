@@ -44,6 +44,7 @@ public final class AppStore {
 
     public var celebration: Celebration?
     public private(set) var persistenceError: String?
+    public private(set) var needsOnboarding: Bool
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let reminderSeed: UInt64
@@ -61,6 +62,7 @@ public final class AppStore {
     private var readCountsBySurah: [Int: Int]
 
     private static let persistenceKey = "Sukoon.AppStore.state.v1"
+    private static let onboardingKey = "Sukoon.onboardingCompleted"
     private static let duaReferences = [
         VerseReference(surahID: 2, verseID: 127),
         VerseReference(surahID: 2, verseID: 201),
@@ -75,6 +77,15 @@ public final class AppStore {
     public init(library: QuranLibrary, defaults: UserDefaults = .standard) {
         self.library = library
         self.defaults = defaults
+        if let completed = defaults.object(forKey: Self.onboardingKey) as? Bool {
+            needsOnboarding = !completed
+        } else {
+            // Any legacy state counts as an existing installation, even if it needs recovery.
+            let existingInstallation = defaults.object(forKey: Self.persistenceKey) != nil
+                || defaults.bool(forKey: "hasOpenedSukoon")
+            needsOnboarding = !existingInstallation
+            defaults.set(existingInstallation, forKey: Self.onboardingKey)
+        }
         reminderSeed = UInt64.random(in: UInt64.min...UInt64.max)
         reminderSequence = 0
         ayahReminderID = UUID()
@@ -115,6 +126,11 @@ public final class AppStore {
         persistenceError = loadError.map {
             AppLocalization(language: state.settings.language).format("Saved Sukoon progress could not be read: %@", $0)
         }
+    }
+
+    public func completeOnboarding() {
+        defaults.set(true, forKey: Self.onboardingKey)
+        needsOnboarding = false
     }
 
     /// Read the language even when a broken Quran resource prevents constructing the store.

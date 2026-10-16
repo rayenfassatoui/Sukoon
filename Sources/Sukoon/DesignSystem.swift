@@ -8,6 +8,7 @@ final class AppNavigation {
     var section: AppSection = .today
     var readerSurahID: Int = 1
     var readerReference: VerseReference?
+    var showsOnboarding = false
 }
 
 enum AppSection: String, CaseIterable, Identifiable {
@@ -42,30 +43,36 @@ enum AppSection: String, CaseIterable, Identifiable {
 
 struct Palette {
     let accent: Color
+    let controlAccent: Color
     let accentSoft: Color
     let canvas: Color
+    let surface: Color
     let raisedSurface: Color
     let primary: Color
     let hairline: Color
     let success: Color
     let gold: Color
 
-    init(accent theme: AccentTheme, dark: Bool = false) {
+    init(accent theme: AccentTheme, dark: Bool = false, increasedContrast: Bool = false) {
         switch theme {
         case .jade:
-            accent = dark ? Color(red: 0.42, green: 0.80, blue: 0.66) : Color(red: 0.08, green: 0.43, blue: 0.33)
-            accentSoft = Color(red: 0.73, green: 0.87, blue: 0.80)
+            accent = dark ? Color(red: 0.48, green: 0.76, blue: 0.63) : Color(red: 0.12, green: 0.37, blue: 0.29)
+            accentSoft = dark ? Color(red: 0.22, green: 0.36, blue: 0.29) : Color(red: 0.79, green: 0.86, blue: 0.81)
+            controlAccent = dark ? Color(red: 0.20, green: 0.48, blue: 0.36) : accent
         case .gold:
             accent = dark ? Color(red: 0.89, green: 0.73, blue: 0.40) : Color(red: 0.63, green: 0.43, blue: 0.12)
             accentSoft = Color(red: 0.91, green: 0.83, blue: 0.64)
+            controlAccent = dark ? Color(red: 0.54, green: 0.41, blue: 0.16) : accent
         case .rose:
             accent = dark ? Color(red: 0.92, green: 0.60, blue: 0.67) : Color(red: 0.64, green: 0.27, blue: 0.34)
             accentSoft = Color(red: 0.91, green: 0.75, blue: 0.78)
+            controlAccent = dark ? Color(red: 0.64, green: 0.34, blue: 0.41) : accent
         }
-        canvas = dark ? Color(red: 0.055, green: 0.065, blue: 0.06) : Color(red: 0.98, green: 0.965, blue: 0.92)
-        primary = dark ? Color(red: 0.93, green: 0.94, blue: 0.92) : Color(red: 0.12, green: 0.14, blue: 0.12)
-        raisedSurface = primary.opacity(0.075)
-        hairline = primary.opacity(0.12)
+        canvas = dark ? Color(red: 0.075, green: 0.09, blue: 0.08) : Color(red: 0.965, green: 0.955, blue: 0.93)
+        surface = dark ? Color(red: 0.115, green: 0.13, blue: 0.12) : Color(red: 0.99, green: 0.982, blue: 0.965)
+        primary = dark ? Color(red: 0.93, green: 0.94, blue: 0.92) : Color(red: 0.13, green: 0.16, blue: 0.14)
+        raisedSurface = primary.opacity(dark ? 0.08 : 0.045)
+        hairline = primary.opacity(increasedContrast ? 0.45 : 0.13)
         success = dark ? Color(red: 0.42, green: 0.80, blue: 0.66) : Color(red: 0.10, green: 0.50, blue: 0.34)
         gold = dark ? Color(red: 0.89, green: 0.73, blue: 0.40) : Color(red: 0.72, green: 0.53, blue: 0.20)
     }
@@ -102,6 +109,7 @@ extension EnvironmentValues {
 
 struct ThemeRoot<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorSchemeContrast) private var contrast
     let store: AppStore
     private let content: Content
 
@@ -112,7 +120,11 @@ struct ThemeRoot<Content: View>: View {
 
 
     var body: some View {
-        let palette = Palette(accent: store.settings.accent, dark: colorScheme == .dark)
+        let palette = Palette(
+            accent: store.settings.accent,
+            dark: colorScheme == .dark,
+            increasedContrast: contrast == .increased
+        )
         let l10n = AppLocalization(language: store.settings.language, quranNumberStyle: store.settings.quranNumberStyle)
         content
             .environment(\.sukoonPalette, palette)
@@ -143,6 +155,7 @@ struct ArabicText: View {
             .multilineTextAlignment(.leading)
             .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
+            .padding(.vertical, 4)
             .environment(\.layoutDirection, .rightToLeft)
     }
 }
@@ -172,14 +185,13 @@ struct SukoonCardModifier: ViewModifier {
         content
             .padding(padding)
             .background {
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(palette.surface)
                     .overlay {
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .stroke(palette.hairline, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(palette.hairline, lineWidth: 1)
                     }
             }
-            .glassEffect(.regular, in: .rect(cornerRadius: 22))
             .foregroundStyle(palette.primary)
     }
 }
@@ -203,15 +215,14 @@ struct SukoonSectionTitle: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 6) {
             if let eyebrow {
-                Text(l10n.isArabic ? eyebrow : eyebrow.uppercased())
-                    .font(.caption.weight(.semibold))
-                    .tracking(l10n.isArabic ? 0 : 1.4)
+                Text(eyebrow)
+                    .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
             }
             Text(title)
-                .font(.system(size: 30, weight: .semibold, design: .rounded))
+                .font(.title2.weight(.semibold))
             if let detail {
                 Text(detail)
                     .font(.callout)
@@ -232,11 +243,11 @@ struct SukoonProgress: View {
             ZStack(alignment: .leading) {
                 Capsule().fill(palette.hairline)
                 Capsule()
-                    .fill(palette.accent.gradient)
+                    .fill(palette.accent)
                     .frame(width: geometry.size.width * CGFloat(min(max(value, 0), 1)))
             }
         }
-        .frame(height: 8)
+        .frame(height: 4)
         .accessibilityElement()
         .accessibilityLabel(l10n.text("Quran progress"))
         .accessibilityValue(l10n.percent(value, fractionDigits: 0))

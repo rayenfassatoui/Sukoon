@@ -48,8 +48,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
         observeSession()
         observeStore()
         scheduleNextReminder()
-        // Opening the workspace makes a first launch discoverable; closing it keeps Sukoon in the menu bar.
-        if !UserDefaults.standard.bool(forKey: "hasOpenedSukoon") {
+        // Existing installations keep their launch behavior; only new users see setup.
+        navigation.showsOnboarding = store.needsOnboarding
+        if store.needsOnboarding || !UserDefaults.standard.bool(forKey: "hasOpenedSukoon") {
             openWorkspace()
             UserDefaults.standard.set(true, forKey: "hasOpenedSukoon")
         }
@@ -137,15 +138,15 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
         if let section { navigation.section = section }
         popover.performClose(nil)
         if workspace == nil {
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 640),
-                                  styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 680),
+                                  styleMask: [.titled, .closable, .miniaturizable, .resizable],
                                   backing: .buffered, defer: false)
             window.title = AppLocalization(language: store.settings.language).text("Sukoon")
             window.identifier = .init("sukoon.workspace")
-            window.titleVisibility = .hidden
-            window.titlebarAppearsTransparent = true
-            window.isMovableByWindowBackground = true
-            window.minSize = NSSize(width: 520, height: 380)
+            window.titleVisibility = .visible
+            window.titlebarAppearsTransparent = false
+            window.isMovableByWindowBackground = false
+            window.collectionBehavior.insert(.fullScreenPrimary)
             window.isReleasedWhenClosed = false
             window.delegate = self
             let controller = NSHostingController(rootView:
@@ -155,11 +156,22 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
                     })
                 }
             )
-            controller.sizingOptions = []
+            controller.sizingOptions = [.minSize]
             window.contentViewController = controller
+            // Keep AppKit restoration and the hosting view's minimum in agreement.
+            let minimumContentSize = WorkspaceView.minimumContentSize
+            window.contentMinSize = minimumContentSize
             if !window.setFrameUsingName("SukoonWorkspace") {
-                window.setContentSize(NSSize(width: 820, height: 640))
+                window.setContentSize(NSSize(width: 900, height: 680))
                 window.center()
+            }
+            let restoredContent = window.contentLayoutRect.size
+            if restoredContent.width < minimumContentSize.width
+                || restoredContent.height < minimumContentSize.height {
+                window.setContentSize(NSSize(
+                    width: max(restoredContent.width, minimumContentSize.width),
+                    height: max(restoredContent.height, minimumContentSize.height)
+                ))
             }
             window.setFrameAutosaveName("SukoonWorkspace")
             workspace = window
@@ -326,7 +338,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
             ).height)
             reminderMeasurement = (key, textHeight)
         }
-        return NSSize(width: width, height: min(max(textHeight + 124, 148), min(640, maximumHeight)))
+        return NSSize(width: width, height: min(max(textHeight + 145, 148), min(640, maximumHeight)))
     }
 
     private func resizeVisibleReminder() {
@@ -553,10 +565,19 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
         nativeLanguage = store.settings.language
         let l10n = AppLocalization(language: store.settings.language)
         workspace?.title = l10n.text("Sukoon")
-        NSApp.mainMenu = Self.makeMainMenu(language: store.settings.language)
+        NSApp.mainMenu = makeMainMenu(language: store.settings.language)
     }
 
-    private static func makeMainMenu(language: AppLanguage) -> NSMenu {
+    @objc private func showSettings() { openWorkspace(.settings) }
+
+    @objc private func showSection(_ sender: NSMenuItem) {
+        guard AppSection.allCases.indices.contains(sender.tag) else { return }
+        openWorkspace(AppSection.allCases[sender.tag])
+    }
+
+    @objc private func showPreview() { presentReminder(preview: true) }
+
+    private func makeMainMenu(language: AppLanguage) -> NSMenu {
         let l10n = AppLocalization(language: language)
         let direction: NSUserInterfaceLayoutDirection = language == .arabic ? .rightToLeft : .leftToRight
         let menu = NSMenu()
@@ -564,6 +585,10 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
         let appItem = NSMenuItem()
         let appMenu = NSMenu(title: l10n.text("Sukoon"))
         appMenu.userInterfaceLayoutDirection = direction
+        let settingsItem = appMenu.addItem(withTitle: l10n.text("Settings") + "…",
+                                          action: #selector(showSettings), keyEquivalent: ",")
+        settingsItem.target = self
+        appMenu.addItem(.separator())
         appMenu.addItem(withTitle: l10n.text("Hide Sukoon"), action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: l10n.text("Quit Sukoon"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
@@ -578,6 +603,25 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
         }
         editItem.submenu = editMenu
         menu.addItem(editItem)
+        let viewItem = NSMenuItem()
+        let viewMenu = NSMenu(title: l10n.text("View"))
+        viewMenu.userInterfaceLayoutDirection = direction
+        for (index, section) in AppSection.allCases.enumerated() {
+            let item = viewMenu.addItem(withTitle: l10n.text(section.title),
+                                       action: #selector(showSection(_:)),
+                                       keyEquivalent: section == .settings ? "" : String(index + 1))
+            item.tag = index
+            item.target = self
+        }
+        viewMenu.addItem(.separator())
+        let popoverItem = viewMenu.addItem(withTitle: l10n.text("Show menu bar"),
+                                          action: #selector(togglePopover), keyEquivalent: "")
+        popoverItem.target = self
+        let previewItem = viewMenu.addItem(withTitle: l10n.text("Preview reminder"),
+                                          action: #selector(showPreview), keyEquivalent: "")
+        previewItem.target = self
+        viewItem.submenu = viewMenu
+        menu.addItem(viewItem)
         let windowItem = NSMenuItem()
         let windowMenu = NSMenu(title: l10n.text("Window"))
         windowMenu.userInterfaceLayoutDirection = direction
@@ -661,7 +705,7 @@ private struct SurahSuccessView: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 25))
+                .font(.title2)
                 .foregroundStyle(palette.success)
             VStack(alignment: .leading, spacing: 4) {
                 Text(l10n.format("%@ complete", l10n.surahName(surah), table: "Workspace"))
@@ -676,6 +720,9 @@ private struct SurahSuccessView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(palette.canvas, in: RoundedRectangle(cornerRadius: 16))
+        .background(palette.surface, in: RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12).strokeBorder(palette.hairline, lineWidth: 1)
+        }
     }
 }

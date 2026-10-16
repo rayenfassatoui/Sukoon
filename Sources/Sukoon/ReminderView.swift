@@ -14,13 +14,19 @@ struct ReminderView: View {
     var body: some View {
         VStack(spacing: 12) {
             HStack {
+                Label(
+                    l10n.text(isPreview ? "Preview reminder" : "Sukoon"),
+                    systemImage: isPreview ? "bell" : "moon.stars"
+                )
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
                 Spacer()
                 Button(action: onDismiss) {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .medium))
                         .frame(width: 24, height: 24)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
                 .foregroundStyle(.secondary)
                 .help(l10n.text(isPreview ? "Close preview; progress stays unchanged" : "Dismiss reminder"))
                 .accessibilityLabel(l10n.text("Dismiss reminder"))
@@ -36,6 +42,7 @@ struct ReminderView: View {
             .defaultScrollAnchor(.center, for: .alignment)
             .scrollBounceBehavior(.basedOnSize)
             .id(content.id)
+            Divider().overlay(palette.hairline)
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 14) {
                     PassageReference(library: store.library, content: content)
@@ -54,13 +61,16 @@ struct ReminderView: View {
         .overlay(alignment: .bottomTrailing) {
             Image(systemName: "arrow.down.right.and.arrow.up.left")
                 .font(.system(size: 9))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
+                .environment(\.layoutDirection, .leftToRight)
                 .padding(6)
-                .help(l10n.text("Resize reminder", table: "Workspace"))
-                .accessibilityLabel(l10n.text("Resize reminder", table: "Workspace"))
+                .accessibilityHidden(true)
         }
-        .background(palette.canvas)
-        .clipShape(.rect(cornerRadius: 18))
+        .background(palette.surface)
+        .clipShape(.rect(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12).strokeBorder(palette.hairline, lineWidth: 1)
+        }
     }
 
     @ViewBuilder
@@ -76,11 +86,10 @@ struct ReminderView: View {
                     ) ? "heart.fill" : "heart")
                         .frame(width: 28, height: 28)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(
-                    store.isBookmarked(surahID: reference.surahID, verseID: reference.verseID)
-                        ? palette.gold
-                        : palette.accent
+                .buttonStyle(.borderless)
+                .foregroundStyle(palette.accent)
+                .accessibilityAddTraits(
+                    store.isBookmarked(surahID: reference.surahID, verseID: reference.verseID) ? .isSelected : []
                 )
                 .help(
                     l10n.format(
@@ -107,7 +116,7 @@ struct ReminderView: View {
                 Image(systemName: "book.closed")
                     .frame(width: 28, height: 28)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderless)
             .help(l10n.text("Open this ayah in the Quran"))
             .accessibilityLabel(l10n.text("Open this ayah in the Quran"))
             .accessibilityIdentifier("reminder.open")
@@ -116,12 +125,10 @@ struct ReminderView: View {
                (content.kind == .surah || content.kind == .automatic),
                !store.settings.autoAdvance {
                 Button(action: onRead) {
-                    Image(systemName: "checkmark")
-                        .fontWeight(.semibold)
-                        .frame(width: 28, height: 28)
+                    Label(l10n.text("Read & continue"), systemImage: "checkmark")
+                        .font(.caption.weight(.medium))
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(palette.accent)
+                .buttonStyle(.bordered)
                 .help(l10n.text("Read & continue"))
                 .accessibilityLabel(l10n.text("Read & continue"))
                 .accessibilityIdentifier("reminder.continue")
