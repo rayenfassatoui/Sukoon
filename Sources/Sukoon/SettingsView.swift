@@ -9,8 +9,8 @@ struct SettingsView: View {
     @Bindable var store: AppStore
     let navigation: AppNavigation
     let onPreview: () -> Void
+    let services: AppServices
     @State private var showingResetConfirmation = false
-    @State private var services = AppServices()
     @State private var selectedCategory: SettingsCategory = .general
 
     private let menuBarAutoCloseOptions = [10, 15, 20]
@@ -506,16 +506,16 @@ struct SettingsView: View {
         settingsSection(l10n.text("Updates", table: "Preferences"), symbol: "arrow.down.circle") {
             SettingsRow(
                 title: l10n.text("Check for updates", table: "Preferences"),
-                detail: l10n.text("Contacts GitHub only when you check. Sukoon otherwise stays offline.", table: "Preferences")
+                detail: l10n.text("Checks GitHub at launch and daily while Sukoon is running. Installation starts only when you choose it.", table: "Preferences")
             ) {
                 Button(l10n.text(
-                    services.updateState == .checking ? "Checking…" : "Check for updates",
+                    services.isCheckingForUpdates ? "Checking…" : "Check for updates",
                     table: "Preferences"
                 )) {
-                    Task { await services.checkForUpdates() }
+                    services.requestUpdateCheck()
                 }
                 .buttonStyle(.bordered)
-                .disabled(services.updateState == .checking)
+                .disabled(services.isUpdating)
                 .accessibilityIdentifier("settings.checkUpdates")
             }
             if let version = services.currentVersion {
@@ -524,21 +524,29 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
             switch services.updateState {
-            case .idle, .checking:
+            case .idle, .checking, .downloading, .extracting, .installing, .waitingForRelaunch, .installed:
                 EmptyView()
             case .upToDate:
                 Label(l10n.text("You are up to date.", table: "Preferences"), systemImage: "checkmark.circle")
                     .foregroundStyle(palette.success)
-            case let .updateAvailable(version, _):
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(l10n.format("Sukoon %@ is available.", version, table: "Preferences"))
-                    Button(l10n.text("Open release page", table: "Preferences")) { services.openRelease() }
+            case .updateAvailable:
+                if !services.showsUpdateNotice {
+                    Button(l10n.text("Show available update", table: "Preferences")) { services.showUpdateNotice() }
                         .buttonStyle(.bordered)
                 }
             case let .failed(failure):
-                Text(failure.localizedMessage(l10n))
-                    .font(.callout)
-                    .foregroundStyle(.red)
+                if failure.concernsInstallation {
+                    if !services.showsUpdateNotice {
+                        Button(l10n.text("Show update details", table: "Preferences")) { services.showUpdateNotice() }
+                            .buttonStyle(.bordered)
+                    }
+                } else {
+                    Text(failure.localizedMessage(l10n))
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                    Button(l10n.text("Open GitHub release", table: "Preferences")) { services.openRelease() }
+                        .buttonStyle(.bordered)
+                }
             }
         }
     }
@@ -779,19 +787,7 @@ struct QuranReadingPreferences: View {
                 )
             ) {
                 HStack(spacing: 6) {
-                    Picker(l10n.text("Quran font", table: "Preferences"), selection: Binding(
-                        get: { fonts.resolvedFontName(store.settings.quranFontName) },
-                        set: { store.settings.quranFontName = $0 }
-                    )) {
-                        ForEach(fonts.options) { font in
-                            Text(font.name).tag(font.id)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .id(store.settings.language)
-                    .frame(minWidth: 140, idealWidth: 180, maxWidth: 240)
-                    .accessibilityIdentifier("settings.quranFont")
+                    QuranFontPicker(store: store)
                     Button {
                         fonts.refreshInstalledFonts()
                     } label: {

@@ -92,3 +92,5 @@
 "Favourites" = "المفضّلة";
 "View" = "عرض";
 "Show menu bar" = "إظهار قائمة شريط القوائم";
+"This release does not include a signed installer. Download it from GitHub instead." = "لا يتضمن هذا الإصدار مثبّتًا موقّعًا. نزّله من GitHub بدلًا من ذلك.";
+"The update could not be installed: %@" = "تعذّر تثبيت التحديث: %@";

@@ -92,3 +92,5 @@
 "Favourites" = "Favourites";
 "View" = "View";
 "Show menu bar" = "Show menu bar";
+"This release does not include a signed installer. Download it from GitHub instead." = "This release does not include a signed installer. Download it from GitHub instead.";
+"The update could not be installed: %@" = "The update could not be installed: %@";

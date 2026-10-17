@@ -7,6 +7,7 @@ import Observation
 struct QuranFontOption: Identifiable, Hashable, Sendable {
     let id: String
     let name: String
+    let isBundled: Bool
 }
 
 /// Registers the bundled Quran fonts for this process and discovers every
@@ -20,9 +21,13 @@ final class QuranFonts {
     private(set) var options: [QuranFontOption] = []
     private(set) var registrationErrors: [String] = []
     private var availableFontNames = Set<String>()
+    private var bundledFontDescriptors: [String: CTFontDescriptor] = [:]
 
     @ObservationIgnored
     private var registeredBundledFontFileNames = Set<String>()
+
+    @ObservationIgnored
+    private var cachedFont: (name: String, size: CGFloat, font: CTFont)?
 
     private static let bundledFontFileNames = [
         "oldmadina.otf",
@@ -68,9 +73,27 @@ final class QuranFonts {
         return storedName
     }
 
+    /// Use the bundled file's descriptor rather than asking SwiftUI to look
+    /// the face up again by name. This also keeps reminder measurement exact.
+    func font(_ storedName: String, size: CGFloat) -> CTFont {
+        let name = resolvedFontName(storedName)
+        if let cachedFont, cachedFont.name == name, cachedFont.size == size {
+            return cachedFont.font
+        }
+        let font: CTFont
+        if let descriptor = bundledFontDescriptors[name] {
+            font = CTFontCreateWithFontDescriptor(descriptor, size, nil)
+        } else {
+            font = CTFontCreateWithName(name as CFString, size, nil)
+        }
+        cachedFont = (name, size, font)
+        return font
+    }
+
     /// Registers all bundled font bytes with CoreText for this process, then
     /// rebuilds the complete installed Arabic-capable face catalogue.
     func refreshInstalledFonts() {
+        cachedFont = nil
         registrationErrors.removeAll(keepingCapacity: true)
         registerBundledFonts()
         options = discoverArabicFonts()
@@ -89,7 +112,14 @@ final class QuranFonts {
                 continue
             }
 
-            let expectedPostScriptNames = postScriptNames(in: url)
+            guard let descriptors = CTFontManagerCreateFontDescriptorsFromURL(url as CFURL) as? [CTFontDescriptor],
+                  !descriptors.isEmpty else {
+                registrationErrors.append("\(fileName): bundled font has no readable faces")
+                continue
+            }
+            let expectedPostScriptNames = descriptors.compactMap {
+                CTFontDescriptorCopyAttribute($0, kCTFontNameAttribute) as? String
+            }
             var registrationError: Unmanaged<CFError>?
             let registered = CTFontManagerRegisterFontsForURL(
                 url as CFURL,
@@ -97,24 +127,18 @@ final class QuranFonts {
                 &registrationError
             )
 
-            if registered {
-                registrationError?.release()
-                registeredBundledFontFileNames.insert(fileName)
-                continue
-            }
-
-            // A second refresh, or another framework that registered the same
-            // face in this process, is not a real load failure. CoreText still
-            // exposes the expected PostScript name in that case.
-            if expectedPostScriptNames.contains(where: isAvailable(_:)) {
-                registrationError?.release()
-                registeredBundledFontFileNames.insert(fileName)
-                continue
-            }
-
             let reason = registrationError?.takeRetainedValue().localizedDescription
-                ?? "CoreText rejected the font resource"
-            registrationErrors.append("\(fileName): \(reason)")
+            // A face may already have been activated by another framework.
+            guard registered || (!expectedPostScriptNames.isEmpty && expectedPostScriptNames.allSatisfy(isAvailable(_:))) else {
+                registrationErrors.append("\(fileName): \(reason ?? "CoreText rejected the font resource")")
+                continue
+            }
+            for descriptor in descriptors {
+                if let name = CTFontDescriptorCopyAttribute(descriptor, kCTFontNameAttribute) as? String {
+                    bundledFontDescriptors[name] = descriptor
+                }
+            }
+            registeredBundledFontFileNames.insert(fileName)
         }
     }
 
@@ -129,43 +153,40 @@ final class QuranFonts {
         )
     }
 
-    private func postScriptNames(in url: URL) -> Set<String> {
-        guard let descriptors = CTFontManagerCreateFontDescriptorsFromURL(url as CFURL) as? [CTFontDescriptor] else {
-            return []
-        }
-        return Set(descriptors.compactMap { descriptor in
-            CTFontDescriptorCopyAttribute(descriptor, kCTFontNameAttribute) as? String
-        })
-    }
-
     private func isAvailable(_ postScriptName: String) -> Bool {
         let font = CTFontCreateWithName(postScriptName as CFString, 12, nil)
         return (CTFontCopyPostScriptName(font) as String) == postScriptName
     }
 
     private func discoverArabicFonts() -> [QuranFontOption] {
-        guard let names = CTFontManagerCopyAvailablePostScriptNames() as? [String] else {
-            return []
-        }
-
+        let names = CTFontManagerCopyAvailablePostScriptNames() as? [String] ?? []
         var seen = Set<String>()
         var discovered: [QuranFontOption] = []
-        discovered.reserveCapacity(names.count)
+        discovered.reserveCapacity(names.count + bundledFontDescriptors.count)
         var glyphs = [CGGlyph](repeating: 0, count: Self.arabicProbeCharacters.count)
 
-        for name in names {
-            let font = CTFontCreateWithName(name as CFString, 16, nil)
+        func append(_ font: CTFont, isBundled: Bool) {
             let postScriptName = CTFontCopyPostScriptName(font) as String
-            guard !postScriptName.isEmpty, seen.insert(postScriptName).inserted else { continue }
-            guard supportsArabic(font, glyphs: &glyphs) else { continue }
+            guard !postScriptName.isEmpty, seen.insert(postScriptName).inserted else { return }
+            guard supportsArabic(font, glyphs: &glyphs) else { return }
 
             let familyName = CTFontCopyFamilyName(font) as String
             let fullName = CTFontCopyFullName(font) as String
             let displayName = fullName.isEmpty ? familyName : fullName
-            discovered.append(QuranFontOption(id: postScriptName, name: displayName))
+            discovered.append(QuranFontOption(id: postScriptName, name: displayName, isBundled: isBundled))
+        }
+
+        // Process-registered fonts need not be enumerated like installed faces.
+        // The app's own resources are authoritative, even on a clean Mac.
+        for descriptor in bundledFontDescriptors.values {
+            append(CTFontCreateWithFontDescriptor(descriptor, 16, nil), isBundled: true)
+        }
+        for name in names {
+            append(CTFontCreateWithName(name as CFString, 16, nil), isBundled: false)
         }
 
         return discovered.sorted { left, right in
+            if left.isBundled != right.isBundled { return left.isBundled }
             let comparison = left.name.caseInsensitiveCompare(right.name)
             return comparison == .orderedSame ? left.id < right.id : comparison == .orderedAscending
         }

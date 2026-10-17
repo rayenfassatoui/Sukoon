@@ -65,7 +65,7 @@ The Quran stays primary. Search and favourites open exact ayahs; compact navigat
 - **Offline mushaf fonts.** Six licensed fonts are bundled, alongside compatible Arabic fonts already installed on the Mac.
 - **Uninterrupted completion.** A short success toast confirms a finished surah without opening the main window or asking for confirmation. Full Quran completion retains a quiet completion sheet and the complete Quranic dua, without decorative animation.
 - **Native startup control.** An OS-backed **Run at startup** switch with explicit approval/error feedback.
-- **Updates on request.** Check the public GitHub release only when you press **Check for updates**.
+- **In-app updates.** Quietly checks GitHub at launch and daily while running. **Download & Install** verifies the signed update, replaces Sukoon and restarts it; errors include an **Open GitHub release** fallback.
 - **Portable reading backup.** Export/import versioned JSON without replacing language, appearance, or reminder preferences.
 - **A short welcome tour.** Two steps with independent language/digit choices, real font and reminder previews, and separate interval/display-duration explanations. Replay it from Settings; existing users keep their preferences and are not forced through it.
 
@@ -80,7 +80,7 @@ Verified configuration: **macOS 27, Apple Silicon, Xcode 27, Swift 6.4**. Other 
 
 ### Download and install
 
-Download **[Sukoon 1.3.0](https://github.com/rayenfassatoui/Sukoon/releases/tag/v1.3.0)** for the quiet reading redesign, two-step welcome tour, and reader/layout improvements shown here. Choose the app ZIP attached to the release; the source-code archives are for building from source.
+Download **[Sukoon 1.4.0](https://github.com/rayenfassatoui/Sukoon/releases/tag/v1.4.0)** for signed in-app updates, live font previews, and corrected loading of the six bundled Quran fonts, alongside the quiet reading redesign. Choose the app ZIP attached to the release; the source-code archives are for building from source.
 
 1. Open the [latest GitHub release](https://github.com/rayenfassatoui/Sukoon/releases/latest) and download the **macOS Apple Silicon (`arm64`) app ZIP** under **Assets**, not the automatically generated source-code archives.
 2. Unzip it and move **`Sukoon.app`** into **`/Applications`**.
@@ -98,7 +98,7 @@ swift Tools/Bundle.swift
 open build/Sukoon.app
 ```
 
-The bundler builds an arm64 release executable, packages the offline Quran, licensed fonts, English and Arabic resources, and app icon, then ad-hoc signs the app by default. It also creates **`build/Sukoon-v1.3.0-macos-arm64.zip`** and **`build/SHA256SUMS`**. It finds a full Xcode installation without changing your system-wide `xcode-select` setting. Set `DEVELOPER_DIR` if you need to select a specific Xcode installation.
+The bundler builds an arm64 release executable, packages the offline Quran, licensed fonts, English and Arabic resources, app icon, and the pinned Sparkle updater framework, then ad-hoc signs the app and its nested helpers by default. It also creates **`build/Sukoon-v1.4.0-macos-arm64.zip`** and **`build/SHA256SUMS`**. It finds a full Xcode installation without changing your system-wide `xcode-select` setting. Set `DEVELOPER_DIR` if you need to select a specific Xcode installation.
 
 You can move **`build/Sukoon.app`** into **`/Applications`**. The bundle is self-contained; it does not need the source checkout to run.
 
@@ -115,6 +115,28 @@ swift Tools/Bundle.swift --sign-identity "$SUKOON_DEVELOPER_ID" --notarize-profi
 ```
 
 The tool signs with hardened runtime and a secure timestamp, waits for Apple's **Accepted** result, staples and validates the ticket, then checks Gatekeeper before creating the final ZIP and checksum. Missing prerequisites fail before replacing generated output. Without these options, the artifact is explicitly **ad-hoc signed and not notarized**. Use `swift Tools/Bundle.swift --help` for all options.
+
+### Publishing signed in-app updates
+
+Sukoon 1.4.0 introduces the updater. **Users of 1.3.x and earlier must install an updater-enabled release manually once**; older apps cannot acquire this feature through a notification.
+
+Release builds pin **Sparkle 2.10.0** and the Ed25519 public key in `Tools/UpdatePublicKey.txt`. The existing release owner's private key is stored outside the checkout at `~/Library/Application Support/Sukoon Release Signing/update-ed25519.key`, with owner-only permissions. Keep a secure backup; never commit it, attach it to a release, or replace the pinned public key casually. Losing it prevents signing updates trusted by already-installed copies.
+
+```sh
+swift Tools/Bundle.swift \
+  --update-key-file "$HOME/Library/Application Support/Sukoon Release Signing/update-ed25519.key"
+```
+
+For each release:
+
+1. Increment both the marketing version and build number in `Tools/Bundle.swift`.
+2. Build with the matching private key. The tool signs the final ZIP and independently verifies its Ed25519 signature before producing **`build/appcast.xml`**. Unsafe key permissions or a mismatched key fail without replacing existing release artifacts.
+3. Publish the matching **`v<version>`** GitHub release with **all three assets**: `Sukoon-v<version>-macos-arm64.zip`, `SHA256SUMS`, and `appcast.xml`. The exact names and release URLs are part of the update contract; do not rename or modify the signed ZIP.
+
+Without `--update-key-file`, local app/ZIP builds still work but no appcast is generated, and any stale generated appcast is removed. A release missing its signed-update assets offers the manual GitHub fallback instead of pretending it can install.
+
+Ed25519 update authentication is **not Apple notarization**. The default app remains ad-hoc signed. For notarized distribution, combine `--update-key-file` with the Developer ID/notarization options above; Gatekeeper and macOS authorization are never bypassed.
+
 
 ### First use
 
@@ -184,7 +206,7 @@ On upgrade, the initial digit choice follows the previously saved language. Both
 - **System** follows the Mac's appearance; switching back to it clears a previous Light or Dark override.
 - Resize the main window by dragging its edges; its frame is saved. The default content size is **900 × 680 pt** and the minimum is **680 × 520 pt**, large enough for compact navigation, search, and reading controls. Larger saved sizes are retained; older undersized frames are clamped to this content minimum. Narrow layouts replace the workspace sidebar and reader chapter list with compact navigation, while preserving the selected ayah and scrolled passage. This main-window minimum does not change popover or reminder-panel limits.
 - Reminder panels initially fit the ayah and selected font, with scrolling for content exceeding the available height. Drag their edges to set a custom width and height; that size is saved for later reminders. **Settings → Reminders → Reminder size → Fit to verse** restores automatic sizing.
-- **Settings → Reading & appearance → Quran font** changes ayah text throughout the app. Choose among bundled mushaf fonts and compatible installed Arabic faces; **Refresh installed fonts** discovers fonts added to macOS while Sukoon is running. An unavailable saved font produces a visible warning and uses Geeza Pro.
+- **Settings → Reading & appearance → Quran font** opens a font list with a live Quran preview. Select a face to apply and save it immediately; **Done** closes the chooser. The same chooser is available in onboarding. Fonts labelled **Included with Sukoon** load directly from the app and need no system installation. Other compatible Arabic faces must be installed on that Mac; **Refresh installed fonts** discovers newly installed faces. An unavailable saved font produces a visible warning and uses Geeza Pro without erasing the saved preference.
 - Menu bar auto-close: **10 seconds** by default. Choose **10, 15, or 20 seconds** in **Settings → General → Menu bar → Auto-close after**. Your choice is saved and applies the next time you open the popover.
 - Reminder intervals: **30 seconds**, or **1, 2, 5, 10, 15, 30, 60, or 120 minutes**. The default remains **2 minutes**; existing saved intervals are preserved.
 - **Display duration** is how long each reminder/preview remains visible, not the time between reminders. It defaults to **10 seconds**; choose **10, 15, 20, 30, or 60 seconds** in **Settings → Reminders → Display duration**. Scheduled panels never stack or replace a still-visible panel; intentional previews replace the current panel without advancing progress.
@@ -196,13 +218,16 @@ On upgrade, the initial digit choice follows the previously saved language. Both
 ## Startup, updates, and backup
 
 - **Settings → General → Startup → Run at startup** uses macOS login-item registration, not a separately saved app Boolean. If approval is needed, use **Open Login Items** and approve Sukoon. Remove any older manually added login-item entry in System Settings before relying on the in-app switch.
-- **Settings → Data & updates → Updates → Check for updates** queries the public GitHub latest-release API, compares it with the actual installed bundle version, and offers its validated release page when newer. It never downloads or runs an updater automatically. Errors remain visible; normal Quran use needs no network.
+- Sukoon checks the public GitHub latest-release API at launch and every 24 hours while running. A newer release gets a quiet workspace notice and menu-bar entry; discovery never opens the workspace or takes focus. **Settings → Data & updates → Updates → Check for updates** remains available.
+- **Download & Install** is explicit consent to download, verify, install and restart Sukoon. Sparkle authenticates the archive before extraction; reading marks, favourites, preferences and compatible backups stay outside the app bundle. Cancel is available during checking/downloading. Installation errors remain visible with **Open GitHub release** for manual recovery; macOS may still require authorization.
 - **Settings → Data & updates → Reading backup** exports read marks, the automatic cursor, chosen surah, and all favourites to versioned JSON. Import explicitly confirms replacement, validates all Quran references/positions before changing anything, and preserves other settings. Cancelled or invalid imports leave existing progress unchanged.
 - Existing single-bookmark saved state migrates into Favourites without resetting the reader or either reading plan.
 
 ## Privacy and saved state
 
-Sukoon uses **Swift, SwiftUI, AppKit, and ServiceManagement**—no web runtime, third-party Swift dependencies, account, telemetry, or runtime network requirement. Quran content and the six bundled fonts work offline. Fonts register only inside Sukoon; the app does not install them into macOS or download fonts in the background. Only an explicit update check contacts GitHub; attribution and release links open externally only when you choose them.
+Sukoon uses **Swift, SwiftUI, AppKit, ServiceManagement, and the pinned Sparkle 2.10.0 updater**—no web runtime, account, cloud reading storage or telemetry. Quran content and the six bundled fonts work offline. Fonts register only inside Sukoon; the app does not install them into macOS or download fonts in the background.
+
+Update discovery contacts GitHub automatically at launch and daily while the app is running. An explicit **Download & Install** action fetches the release's appcast and archive from GitHub and its download CDN. Sparkle automatic installation, system profiling and web release notes are disabled. Reading state and favourites are not sent with update checks. Attribution/release links open externally only when chosen; an unavailable network does not prevent reading or reminders.
 
 Preferences and reading state are stored locally in `UserDefaults` under the app's `app.sukoon.mac` domain:
 
@@ -242,7 +267,7 @@ For the redesign's native smoke checks, before/after captures, and unverified ac
 | [`Sources/SukoonCore/Resources`](Sources/SukoonCore/Resources) | Pinned Quran data, source notices, license, and English/Arabic string catalogs |
 | [`Sources/Sukoon/Resources/Fonts`](Sources/Sukoon/Resources/Fonts) | Unmodified offline Arabic font binaries, their licenses, source URLs, and checksums |
 | [`Tests/SukoonCoreTests`](Tests/SukoonCoreTests) | Dataset integrity, search normalization/reference boundaries, acknowledgement, reading sequences, persistence/migration, quiet hours/DST/snooze, and backup validation |
-| [`Tools/Bundle.swift`](Tools/Bundle.swift) | Build, resource packaging, icon generation, local/Developer ID signing, notarization, ZIP, and checksums |
+| [`Tools/Bundle.swift`](Tools/Bundle.swift) | Build, resource/framework packaging, icon generation, local/Developer ID signing, notarization, ZIP, checksums and authenticated update appcast |
 
 For bug reports, include the macOS version, interface language, reading mode, and steps to reproduce. For build problems, also include the Xcode and Swift versions.
 
@@ -281,5 +306,10 @@ Dua reminders use complete Quran verses with their original surah and ayah refer
 The app includes **Digital Khatt Old Madina**, **Digital Khatt New Madina**, **Digital Khatt IndoPak**, **KFGQPC Nastaleeq**, **KFGQPC Hafs Uthmanic Script**, and **Amiri Quran**. The Digital Khatt and Amiri fonts use the SIL Open Font License; the two KFGQPC fonts retain their original redistribution-permitting EULA. All binaries are unmodified. Exact source URLs, versions/checksums, and accompanying licenses are in [`Sources/Sukoon/Resources/Fonts/NOTICES.txt`](Sources/Sukoon/Resources/Fonts/NOTICES.txt) and are shipped in the app bundle.
 
 Me Quran and the QuranWBW IndoPak font are **not bundled**: their inspected terms do not grant the redistribution rights needed here without further permission. Installed compatible Arabic fonts remain available through the font picker; their presence on a user's Mac does not grant Sukoon redistribution rights.
+
+### Updater license
+
+[Sparkle 2.10.0](https://github.com/sparkle-project/Sparkle/tree/2.10.0) is MIT-licensed and includes additional third-party notices. Its complete license is shipped as `Sukoon.app/Contents/Resources/Sparkle-LICENSE.txt`; the full framework, helper applications and resources are preserved by the bundler.
+
 
 **Application code:** no application-code license is currently declared in this repository. The dataset's CC BY-SA 4.0 license applies to the dataset and should not be treated as the application's license.

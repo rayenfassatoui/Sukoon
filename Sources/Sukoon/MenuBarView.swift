@@ -6,6 +6,7 @@ struct MenuBarView: View {
     @Environment(\.sukoonLocalization) private var l10n
     @Bindable var store: AppStore
     let reminderClock: ReminderClock
+    let services: AppServices
     let onOpen: (AppSection) -> Void
     let onPreview: () -> Void
     let onQuit: () -> Void
@@ -65,6 +66,16 @@ struct MenuBarView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if services.showsUpdateNotice {
+                Button { onOpen(.settings) } label: {
+                    Label(l10n.text("App update", table: "Preferences"), systemImage: "arrow.down.circle")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.borderless)
+                .help(l10n.text("Open update details", table: "Preferences"))
+                .accessibilityIdentifier("updates.openDetails")
             }
 
             Divider().overlay(palette.hairline)

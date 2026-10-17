@@ -13,6 +13,11 @@ final class AppServices {
         case checking
         case upToDate
         case updateAvailable(version: String, url: URL)
+        case downloading
+        case extracting
+        case installing
+        case waitingForRelaunch
+        case installed(version: String)
         case failed(UpdateFailure)
     }
 
@@ -24,6 +29,15 @@ final class AppServices {
         case invalidRelease
         case requestFailed(String)
         case couldNotOpenRelease
+        case missingInstallerAssets
+        case installationFailed(String)
+
+        var concernsInstallation: Bool {
+            switch self {
+            case .missingInstallerAssets, .installationFailed, .couldNotOpenRelease: true
+            default: false
+            }
+        }
 
         func localizedMessage(_ localization: AppLocalization) -> String {
             switch self {
@@ -41,6 +55,10 @@ final class AppServices {
                 localization.format("The update check failed: %@", reason)
             case .couldNotOpenRelease:
                 localization.text("The release page could not be opened.")
+            case .missingInstallerAssets:
+                localization.text("This release does not include a signed installer. Download it from GitHub instead.")
+            case let .installationFailed(reason):
+                localization.format("The update could not be installed: %@", reason)
             }
         }
     }
@@ -58,6 +76,44 @@ final class AppServices {
     private(set) var updateState: UpdateState = .idle
     private(set) var readingTransferState: ReadingTransferState = .idle
     let currentVersion: String?
+    private var availableUpdate: AvailableUpdate?
+    private var installationVersion: String?
+    private var noticeDismissed = false
+    @ObservationIgnored private var automaticUpdateTask: Task<Void, Never>?
+    @ObservationIgnored private var manualUpdateTask: Task<Void, Never>?
+    @ObservationIgnored private var installer: UpdateInstaller?
+
+    var isCheckingForUpdates: Bool { updateState == .checking }
+
+    var isUpdating: Bool {
+        switch updateState {
+        case .checking, .downloading, .extracting, .installing, .waitingForRelaunch: true
+        default: false
+        }
+    }
+
+    var canCancelUpdate: Bool {
+        installationVersion != nil && (updateState == .checking || updateState == .downloading)
+    }
+
+    var updateVersion: String? { installationVersion ?? availableUpdate?.version }
+
+    var showsUpdateNotice: Bool {
+        if noticeDismissed && !isUpdating { return false }
+        switch updateState {
+        case .updateAvailable, .downloading, .extracting, .installing, .waitingForRelaunch, .installed: return true
+        case .checking: return installationVersion != nil
+        case let .failed(failure): return failure.concernsInstallation
+        default: return false
+        }
+    }
+
+    func dismissUpdateNotice() {
+        guard !isUpdating else { return }
+        noticeDismissed = true
+    }
+
+    func showUpdateNotice() { noticeDismissed = false }
 
     init() {
         startupStatus = SMAppService.mainApp.status
@@ -95,9 +151,44 @@ final class AppServices {
         SMAppService.openSystemSettingsLoginItems()
     }
 
-    /// This is the sole network entry point; initialization and status refresh stay offline.
-    func checkForUpdates() async {
-        guard updateState != .checking else { return }
+    /// Discovery stays separate from installation: a newer GitHub release can
+    /// never replace this app until the user chooses Download & Install.
+    func startAutomaticUpdateChecks() {
+        guard automaticUpdateTask == nil else { return }
+        automaticUpdateTask = Task { @concurrent [weak self] in
+            while !Task.isCancelled {
+                if let services = self {
+                    await services.checkForUpdates()
+                } else {
+                    return
+                }
+                do { try await Task.sleep(for: .seconds(86_400)) }
+                catch { return }
+            }
+        }
+    }
+
+    func stopUpdateChecks() {
+        automaticUpdateTask?.cancel()
+        automaticUpdateTask = nil
+        manualUpdateTask?.cancel()
+        manualUpdateTask = nil
+    }
+
+    func requestUpdateCheck() {
+        guard manualUpdateTask == nil, !isUpdating else { return }
+        noticeDismissed = false
+        manualUpdateTask = Task { @concurrent [weak self] in
+            await self?.checkForUpdates()
+            await self?.finishManualUpdateCheck()
+        }
+    }
+
+    private func finishManualUpdateCheck() { manualUpdateTask = nil }
+
+    private func checkForUpdates() async {
+        guard !isUpdating else { return }
+        let previousState = updateState
         updateState = .checking
         guard let currentVersion, !currentVersion.isEmpty else {
             updateState = .failed(.missingCurrentVersion)
@@ -121,6 +212,7 @@ final class AppServices {
 
         do {
             let (data, response) = try await session.data(for: request)
+            try Task.checkCancellation()
             guard let response = response as? HTTPURLResponse, response.url == endpoint else {
                 updateState = .failed(.unexpectedResponse)
                 return
@@ -138,18 +230,88 @@ final class AppServices {
             }
             if installed < latest {
                 let version = release.tagName.hasPrefix("v") ? String(release.tagName.dropFirst()) : release.tagName
-                updateState = .updateAvailable(version: version, url: releaseURL)
+                if availableUpdate?.version != version { noticeDismissed = false }
+                availableUpdate = AvailableUpdate(
+                    version: version, pageURL: releaseURL,
+                    archiveURL: Self.validatedAssetURL(release, name: "Sukoon-v\(version)-macos-arm64.zip"),
+                    feedURL: Self.validatedAssetURL(release, name: "appcast.xml")
+                )
+                if availableUpdate?.archiveURL == nil || availableUpdate?.feedURL == nil {
+                    updateState = .failed(.missingInstallerAssets)
+                } else {
+                    updateState = .updateAvailable(version: version, url: releaseURL)
+                }
             } else {
+                availableUpdate = nil
                 updateState = .upToDate
             }
         } catch {
-            updateState = .failed(.requestFailed(error.localizedDescription))
+            if Task.isCancelled || (error as? URLError)?.code == .cancelled {
+                updateState = previousState
+            } else {
+                updateState = .failed(.requestFailed(error.localizedDescription))
+            }
         }
     }
 
+    func downloadAndInstallUpdate() {
+        guard !isUpdating, let update = availableUpdate else { return }
+        guard let archiveURL = update.archiveURL, let feedURL = update.feedURL else {
+            updateState = .failed(.missingInstallerAssets)
+            return
+        }
+        if installer == nil {
+            installer = UpdateInstaller { [weak self] state in
+                self?.handleInstallationState(state)
+            }
+        }
+        noticeDismissed = false
+        installationVersion = update.version
+        updateState = .checking
+        do {
+            try installer?.start(version: update.version, archiveURL: archiveURL, feedURL: feedURL)
+        } catch {
+            installationVersion = nil
+            updateState = .failed(.installationFailed(error.localizedDescription))
+        }
+    }
+
+    private func handleInstallationState(_ state: UpdateInstallationState) {
+        switch state {
+        case .checking: updateState = .checking
+        case .downloading: updateState = .downloading
+        case .extracting: updateState = .extracting
+        case .installing: updateState = .installing
+        case .waitingForRelaunch: updateState = .waitingForRelaunch
+        case .installed:
+            if let version = installationVersion { updateState = .installed(version: version) }
+            installationVersion = nil
+        case .cancelled:
+            installationVersion = nil
+            if let update = availableUpdate {
+                updateState = .updateAvailable(version: update.version, url: update.pageURL)
+            } else {
+                updateState = .idle
+            }
+        case let .failed(reason):
+            installationVersion = nil
+            updateState = .failed(.installationFailed(reason))
+        }
+    }
+
+    func cancelUpdate() {
+        guard canCancelUpdate else { return }
+        installer?.cancel()
+    }
+
+    func retryUpdateRelaunch() {
+        guard updateState == .waitingForRelaunch else { return }
+        installer?.retryRelaunch()
+    }
+
     func openRelease() {
-        guard case let .updateAvailable(_, url) = updateState else { return }
-        // Only a URL validated from the public release response can enter this state.
+        let url = availableUpdate?.pageURL
+            ?? URL(string: "https://github.com/rayenfassatoui/Sukoon/releases/latest")!
         if !NSWorkspace.shared.open(url) {
             updateState = .failed(.couldNotOpenRelease)
         }
@@ -243,6 +405,27 @@ final class AppServices {
               components.path == "/rayenfassatoui/Sukoon/releases/tag/\(tag)" else { return nil }
         return components.url
     }
+
+    private static func validatedAssetURL(_ release: GitHubRelease, name: String) -> URL? {
+        var match: GitHubRelease.Asset?
+        for asset in release.assets where asset.name == name {
+            guard match == nil, asset.state == "uploaded", asset.size > 0 else { return nil }
+            match = asset
+        }
+        guard let match, let components = URLComponents(string: match.downloadURL),
+              components.scheme == "https", components.host == "github.com",
+              components.user == nil, components.password == nil, components.port == nil,
+              components.query == nil, components.fragment == nil,
+              components.path == "/rayenfassatoui/Sukoon/releases/download/\(release.tagName)/\(name)" else { return nil }
+        return components.url
+    }
+}
+
+private struct AvailableUpdate {
+    let version: String
+    let pageURL: URL
+    let archiveURL: URL?
+    let feedURL: URL?
 }
 
 private struct GitHubRelease: Decodable {
@@ -250,11 +433,24 @@ private struct GitHubRelease: Decodable {
     let htmlURL: String
     let draft: Bool
     let prerelease: Bool
+    let assets: [Asset]
 
     enum CodingKeys: String, CodingKey {
         case tagName = "tag_name"
         case htmlURL = "html_url"
-        case draft, prerelease
+        case draft, prerelease, assets
+    }
+
+    struct Asset: Decodable {
+        let name: String
+        let state: String
+        let size: Int
+        let downloadURL: String
+
+        enum CodingKeys: String, CodingKey {
+            case name, state, size
+            case downloadURL = "browser_download_url"
+        }
     }
 }
 

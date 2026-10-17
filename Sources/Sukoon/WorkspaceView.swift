@@ -9,13 +9,15 @@ struct WorkspaceView: View {
     @Bindable private var store: AppStore
     @Bindable private var navigation: AppNavigation
     private let reminderClock: ReminderClock
+    private let services: AppServices
     private let onPreview: () -> Void
     @State private var onboardingIsPresented = false
 
-    init(store: AppStore, navigation: AppNavigation, reminderClock: ReminderClock, onPreview: @escaping () -> Void) {
+    init(store: AppStore, navigation: AppNavigation, reminderClock: ReminderClock, services: AppServices, onPreview: @escaping () -> Void) {
         self.store = store
         self.navigation = navigation
         self.reminderClock = reminderClock
+        self.services = services
         self.onPreview = onPreview
     }
 
@@ -46,7 +48,7 @@ struct WorkspaceView: View {
         case .favourites:
             FavouritesView(store: store, navigation: navigation)
         case .settings:
-            SettingsView(store: store, navigation: navigation, onPreview: onPreview)
+            SettingsView(store: store, navigation: navigation, onPreview: onPreview, services: services)
         }
     }
 
@@ -88,6 +90,10 @@ struct WorkspaceView: View {
                     Divider()
                 }
                 VStack(spacing: 0) {
+                    if services.showsUpdateNotice {
+                        UpdateNoticeView(services: services)
+                        Divider()
+                    }
                     if compact {
                         compactNavigation
                         Divider()

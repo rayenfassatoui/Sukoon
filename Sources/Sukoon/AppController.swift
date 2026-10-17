@@ -6,6 +6,7 @@ import SukoonCore
 @MainActor
 final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPopoverDelegate {
     let store: AppStore
+    let services = AppServices()
     let navigation = AppNavigation()
     let reminderClock = ReminderClock()
     private var statusItem: NSStatusItem?
@@ -54,6 +55,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
             openWorkspace()
             UserDefaults.standard.set(true, forKey: "hasOpenedSukoon")
         }
+        services.startAutomaticUpdateChecks()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -70,6 +72,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
         successDismissalTimer?.invalidate()
         popoverDismissalTimer?.invalidate()
         availabilityTimer?.invalidate()
+        services.stopUpdateChecks()
+        UserDefaults.standard.synchronize()
         NotificationCenter.default.removeObserver(self)
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         DistributedNotificationCenter.default().removeObserver(self)
@@ -94,7 +98,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
         popover.delegate = self
         let controller = NSHostingController(rootView:
             ThemeRoot(store: store) {
-                MenuBarView(store: store, reminderClock: reminderClock, onOpen: { [weak self] section in
+                MenuBarView(store: store, reminderClock: reminderClock, services: services, onOpen: { [weak self] section in
                     guard let self else { return }
                     if section == .quran,
                        let reference = (self.store.lastReminder ?? self.store.previewReminder())?.reference {
@@ -151,7 +155,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
             window.delegate = self
             let controller = NSHostingController(rootView:
                 ThemeRoot(store: store) {
-                    WorkspaceView(store: store, navigation: navigation, reminderClock: reminderClock, onPreview: { [weak self] in
+                    WorkspaceView(store: store, navigation: navigation, reminderClock: reminderClock, services: services, onPreview: { [weak self] in
                         self?.presentReminder(preview: true)
                     })
                 }
@@ -325,7 +329,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, NS
             textHeight = measurement.height
         } else {
             let pointSize = CGFloat(store.settings.arabicFontSize)
-            let font = NSFont(name: fontName, size: pointSize) ?? .systemFont(ofSize: pointSize)
+            let font = QuranFonts.shared.font(fontName, size: pointSize)
             let paragraph = NSMutableParagraphStyle()
             paragraph.baseWritingDirection = .rightToLeft
             paragraph.lineSpacing = max(8, pointSize * 0.42)

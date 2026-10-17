@@ -150,7 +150,7 @@ struct ArabicText: View {
     var body: some View {
         let pointSize = CGFloat(size)
         Text(text)
-            .font(.custom(fontName, size: pointSize))
+            .font(Font(QuranFonts.shared.font(fontName, size: pointSize)))
             .lineSpacing(max(8, pointSize * 0.42))
             .multilineTextAlignment(.leading)
             .frame(maxWidth: .infinity, alignment: .leading)

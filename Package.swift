@@ -9,9 +9,17 @@ let package = Package(
         .executable(name: "Sukoon", targets: ["Sukoon"]),
         .library(name: "SukoonCore", targets: ["SukoonCore"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.0")
+    ],
     targets: [
         .target(name: "SukoonCore", resources: [.process("Resources")]),
-        .executableTarget(name: "Sukoon", dependencies: ["SukoonCore"], resources: [.copy("Resources")]),
+        .executableTarget(
+            name: "Sukoon",
+            dependencies: ["SukoonCore", .product(name: "Sparkle", package: "Sparkle")],
+            resources: [.copy("Resources")],
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
+        ),
         .testTarget(name: "SukoonCoreTests", dependencies: ["SukoonCore"])
     ]
 )
